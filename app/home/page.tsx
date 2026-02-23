@@ -1,10 +1,18 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+
+import { Header } from '@/components/header'
+import { WardListItem } from '@/components/ward/ward-item-list'
+import { JoinWardModal } from '@/components/modals/openJoinModal'
+
 import { useAuth } from '@/features/auth/auth-context'
-import { getAllWards, Ward } from '@/features/ward/getAllWard'
-import { WardListItem } from '@/components/ward//ward-item-list'
+import type { Ward } from '@/features/ward/types'
+
+import { enterWard } from '@/features/ward/enterWard'
+import { joinWard } from '@/features/ward/JoinWard'
+import { getAllWards } from '@/features/ward/getAllWard'
 
 export default function HomePage() {
   const router = useRouter()
@@ -13,22 +21,48 @@ export default function HomePage() {
   const [wards, setWards] = useState<Ward[]>([])
   const [isWardLoading, setIsWardLoading] = useState(true)
 
+  const [selectedWard, setSelectedWard] = useState<Ward | null>(null)
+  const [isJoinOpen, setIsJoinOpen] = useState(false)
+
+  // ===============================
+  // กด Enter Ward
+  // ===============================
+  const handleEnterWard = async (ward: Ward) => {
+  try {
+    const data = await enterWard(ward.wardId)
+
+    if (data.isMember) {
+      router.push(`/ward/${ward.wardId}`)
+    } else {
+      setSelectedWard(ward)
+      setIsJoinOpen(true)
+    }
+
+  } catch (err) {
+    console.error(err)
+    alert('Something went wrong')
+  }
+}
+
+  // ===============================
+  // Redirect ถ้ายังไม่ login
+  // ===============================
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.replace('/login')
     }
   }, [isLoading, isAuthenticated, router])
 
+  // ===============================
+  // โหลด Ward ทั้งหมด
+  // ===============================
   useEffect(() => {
     const fetchWards = async () => {
       try {
-        console.log("===========================================")
         const data = await getAllWards()
-
-        console.log("📦 Data received in Home:", data)
         setWards(data)
       } catch (error) {
-        console.error("Error fetching wards:", error)
+        console.error('Error fetching wards:', error)
       } finally {
         setIsWardLoading(false)
       }
@@ -52,40 +86,78 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen p-8">
-      <h1 className="text-3xl font-bold">
-        {user.displayName}
-      </h1>
+    <>
+      <Header />
 
-      <p className="mt-2 text-muted-foreground">
-        This is your Nurse Shift Management Home page.
-      </p>
+      <div className="min-h-screen p-8">
+        <h1 className="text-3xl font-bold">{user.displayName}</h1>
 
-      <div className="mt-6 rounded-lg border p-6">
-        <p><strong>Hospital:</strong> โรงพยาบาล</p>
-        <p><strong>Email:</strong> {user.email}</p>
+        <p className="mt-2 text-muted-foreground">
+          This is your Nurse Shift Management Home page.
+        </p>
+
+        <div className="mt-6 rounded-lg border p-6">
+          <p>
+            <strong>Hospital:</strong> โรงพยาบาล
+          </p>
+          <p>
+            <strong>Email:</strong> {user.email}
+          </p>
+        </div>
+
+        {/* Ward List */}
+        <div className="mt-8 space-y-4">
+          <h2 className="text-xl font-semibold">Ward List</h2>
+
+          {isWardLoading ? (
+            <p>Loading wards...</p>
+          ) : wards.length === 0 ? (
+            <p>No wards found.</p>
+          ) : (
+            wards.map((ward) => (
+              <WardListItem
+                key={ward.wardId}
+                ward={ward}
+                isHeadNurse={true}
+                onEnterWard={handleEnterWard}
+                onDeleteWard={(w) => console.log('Delete ward:', w)}
+              />
+            ))
+          )}
+        </div>
       </div>
 
-      {/* ✅ Ward List */}
-      <div className="mt-8 space-y-4">
-        <h2 className="text-xl font-semibold">Ward List</h2>
+      {/* =============================== */}
+      {/* Join Modal */}
+      {/* =============================== */}
+      <JoinWardModal
+        open={isJoinOpen}
+        onOpenChange={setIsJoinOpen}
+        wardName={selectedWard?.wardName || ''}
+        onJoinWard={async (code) => {
+           console.log("JOIN CLICKED")
+            console.log("CODE:", code)
+          if (!selectedWard) {
+            return { success: false, error: 'ไม่พบวอร์ด' }
+          }
 
-        {isWardLoading ? (
-          <p>Loading wards...</p>
-        ) : wards.length === 0 ? (
-          <p>No wards found.</p>
-        ) : (
-          wards.map((ward) => (
-            <WardListItem
-              key={ward.wardId}
-              ward={ward}
-              isHeadNurse={true}
-              onEnterWard={(w) => console.log("Enter ward:", w)}
-              onDeleteWard={(w) => console.log("Delete ward:", w)}
-            />
-          ))
-        )}
-      </div>
-    </div>
+          try {
+            await joinWard(selectedWard.wardId, code)
+            console.log("JOIN SUCCESS")
+
+            setIsJoinOpen(false)
+            router.push(`/ward/${selectedWard.wardId}`)
+
+            return { success: true }
+          } catch (error: any) {
+            console.log("JOIN ERROR:", error)
+            return {
+              success: false,
+              error: error.message || 'รหัสไม่ถูกต้อง',
+            }
+          }
+        }}
+      />
+    </>
   )
 }

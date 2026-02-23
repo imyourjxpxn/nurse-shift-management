@@ -2,7 +2,7 @@
 
 import { Users, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { Ward } from '@/features/ward/getAllWard'
+import type { Ward } from '@/features/ward/types'
 
 interface WardListItemProps {
   ward: Ward
@@ -17,6 +17,8 @@ export function WardListItem({
   onEnterWard,
   onDeleteWard,
 }: WardListItemProps) {
+
+  
   return (
     <div className="flex items-center justify-between rounded-lg border p-4 hover:bg-muted/50 transition">
       <div>

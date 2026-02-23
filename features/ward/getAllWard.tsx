@@ -1,13 +1,5 @@
-// features/ward/ward.service.ts
-
-import { apiFetch } from "@/lib/api-client"
-
-export interface Ward {
-  wardId: string
-  wardName: string
-  member: number
-  createdBy: string
-}
+import { apiFetch } from '@/lib/api-client'
+import { Ward } from './types'
 
 export async function getAllWards(): Promise<Ward[]> {
   const res = await apiFetch(
@@ -15,12 +7,11 @@ export async function getAllWards(): Promise<Ward[]> {
   )
 
   if (!res.ok) {
-    throw new Error("Failed to fetch wards")
+    throw new Error('Failed to fetch wards')
   }
 
   const data = await res.json()
 
-  // 🔥 เผื่อ backend ส่ง member เป็น string
   return data.map((w: any) => ({
     wardId: w.wardId,
     wardName: w.wardName,
