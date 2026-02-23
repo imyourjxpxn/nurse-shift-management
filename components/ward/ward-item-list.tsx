@@ -22,9 +22,9 @@ export function WardListItem({
   return (
     <div className="flex items-center justify-between rounded-lg border p-4 hover:bg-muted/50 transition">
       <div>
-        {/* ✅ id + ward name แถวเดียว */}
+        {/*  ward name แถวเดียว */}
         <h3 className="font-semibold text-foreground">
-          {ward.wardId} - {ward.wardName}
+          {ward.wardName}
         </h3>
 
         {/* ✅ จำนวนสมาชิก */}

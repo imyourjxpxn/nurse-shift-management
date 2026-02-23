@@ -22,7 +22,7 @@ import { LegalContentModal } from '@/components/modals/legal-content-modal'
 import { TermsOfServiceContent, PrivacyPolicyContent } from '@/components/modals/legal-content'
 
 import { useAuth } from '@features/auth/auth-context'
-import  { getHospitals, type Hospital } from '@/features/hospital/getHospital'
+import  { getHospitals, type Hospital } from '@/features/Hospital/getHospital'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -167,37 +167,32 @@ export default function RegisterPage() {
               />
             </div>
 
-          {/* Full Name (Connected Fields) */}
-          <div className="space-y-2">
-            <Label className="text-sm text-sky-600">
-              ชื่อ - นามสกุล <span className="text-destructive">*</span>
-            </Label>
+                {/* Full Name (Connected Fields) */}
+                <div className="flex rounded-md border border-sky-300 
+                              focus-within:ring-2 focus-within:ring-sky-500/30 
+                              focus-within:border-sky-500 overflow-hidden">
 
-            <div className="flex rounded-md border border-sky-300 focus-within:ring-2 focus-within:ring-sky-500/30 focus-within:border-sky-500 overflow-hidden">
-              
-              {/* First Name */}
-              <Input
-                type="text"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                placeholder="ชื่อจริง"
-                className="rounded-none border-0 focus-visible:ring-0"
-              />
+                {/* First Name */}
+                <Input
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="ชื่อจริง"
+                  className="flex-1 rounded-none border-0 focus-visible:ring-0"
+                />
 
-              {/* Divider */}
-              <div className="w-px bg-sky-300" />
+                {/* Divider */}
+                <div className="w-px bg-sky-300" />
 
-              {/* Last Name */}
-              <Input
-                type="text"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                placeholder="นามสกุล"
-                className="rounded-none border-0 focus-visible:ring-0"
-              />
-              
-            </div>
-          </div>
+                {/* Last Name */}
+                <Input
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="นามสกุล"
+                  className="flex-1 rounded-none border-0 focus-visible:ring-0"
+                />
+              </div>
 
             {/* Hospital Select */}
             <div className="space-y-2">

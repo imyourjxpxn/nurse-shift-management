@@ -18,27 +18,28 @@ export function Header() {
 }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-background">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
-        <Link href="/home">
-          <WaneYenLogo size="sm" />
-        </Link>
+    <header className="sticky top-0 z-50 bg-white shadow-sm">
+  <div className="flex h-20 w-full items-center justify-between px-6">
+    <Link href="/home">
+      <WaneYenLogo size="sm" />
+    </Link>
 
-        <div className="flex items-center gap-4">
-          {user && (
-            <span className="text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">{user.displayName}</span>
-            </span>
-          )}
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <LogOut className="size-4" />
-            <span>ออกจากระบบ</span>
-          </button>
-        </div>
-      </div>
-    </header>
+    <div className="flex items-center gap-6">
+      {user && (
+        <span className="text-sm font-semibold text-gray-800">
+          {user.displayName}
+        </span>
+      )}
+
+      <button
+        onClick={handleLogout}
+        className="flex items-center gap-2 text-sm text-gray-600 transition hover:text-black"
+      >
+        <LogOut className="size-4" />
+        ออกจากระบบ
+      </button>
+    </div>
+  </div>
+</header>
   )
 }

@@ -23,3 +23,4 @@ export interface EnterWardResponse {
   wardId: string
   isMember: boolean
 }
+

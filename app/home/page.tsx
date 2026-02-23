@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { Header } from '@/components/header'
 import { WardListItem } from '@/components/ward/ward-item-list'
 import { JoinWardModal } from '@/components/modals/openJoinModal'
 
@@ -13,10 +12,15 @@ import type { Ward } from '@/features/ward/types'
 import { enterWard } from '@/features/ward/enterWard'
 import { joinWard } from '@/features/ward/JoinWard'
 import { getAllWards } from '@/features/ward/getAllWard'
+import { getUserHospital } from '@/features/Hospital/getUserHospital'
 
 export default function HomePage() {
   const router = useRouter()
   const { user, isAuthenticated, isLoading } = useAuth()
+
+  // ✅ ต้องอยู่ใน component เท่านั้น
+  const [hospitalName, setHospitalName] = useState<string>('')
+  const [isHospitalLoading, setIsHospitalLoading] = useState(true)
 
   const [wards, setWards] = useState<Ward[]>([])
   const [isWardLoading, setIsWardLoading] = useState(true)
@@ -25,24 +29,24 @@ export default function HomePage() {
   const [isJoinOpen, setIsJoinOpen] = useState(false)
 
   // ===============================
-  // กด Enter Ward
+  // โหลด Hospital
   // ===============================
-  const handleEnterWard = async (ward: Ward) => {
-  try {
-    const data = await enterWard(ward.wardId)
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      const fetchHospital = async () => {
+        try {
+          const data = await getUserHospital()
+          setHospitalName(data.name)
+        } catch (error) {
+          console.error('Error fetching hospital:', error)
+        } finally {
+          setIsHospitalLoading(false)
+        }
+      }
 
-    if (data.isMember) {
-      router.push(`/ward/${ward.wardId}`)
-    } else {
-      setSelectedWard(ward)
-      setIsJoinOpen(true)
+      fetchHospital()
     }
-
-  } catch (err) {
-    console.error(err)
-    alert('Something went wrong')
-  }
-}
+  }, [isLoading, isAuthenticated])
 
   // ===============================
   // Redirect ถ้ายังไม่ login
@@ -57,21 +61,40 @@ export default function HomePage() {
   // โหลด Ward ทั้งหมด
   // ===============================
   useEffect(() => {
-    const fetchWards = async () => {
-      try {
-        const data = await getAllWards()
-        setWards(data)
-      } catch (error) {
-        console.error('Error fetching wards:', error)
-      } finally {
-        setIsWardLoading(false)
+    if (!isLoading && isAuthenticated) {
+      const fetchWards = async () => {
+        try {
+          const data = await getAllWards()
+          setWards(data)
+        } catch (error) {
+          console.error('Error fetching wards:', error)
+        } finally {
+          setIsWardLoading(false)
+        }
       }
-    }
 
-    if (isAuthenticated) {
       fetchWards()
     }
-  }, [isAuthenticated])
+  }, [isLoading, isAuthenticated])
+
+  // ===============================
+  // Enter Ward
+  // ===============================
+  const handleEnterWard = async (ward: Ward) => {
+    try {
+      const data = await enterWard(ward.wardId)
+
+      if (data.isMember) {
+        router.push(`/ward/${ward.wardId}`)
+      } else {
+        setSelectedWard(ward)
+        setIsJoinOpen(true)
+      }
+    } catch (err) {
+      console.error(err)
+      alert('Something went wrong')
+    }
+  }
 
   if (isLoading) {
     return (
@@ -87,27 +110,34 @@ export default function HomePage() {
 
   return (
     <>
-      <Header />
-
       <div className="min-h-screen p-8">
-        <h1 className="text-3xl font-bold">{user.displayName}</h1>
 
-        <p className="mt-2 text-muted-foreground">
-          This is your Nurse Shift Management Home page.
-        </p>
+        {/* Hospital Card */}
+        <div className="mt-1">
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r 
+                          from-sky-200 to-sky-300 
+                          px-12 py-24 md:py-10">
 
-        <div className="mt-6 rounded-lg border p-6">
-          <p>
-            <strong>Hospital:</strong> โรงพยาบาล
-          </p>
-          <p>
-            <strong>Email:</strong> {user.email}
-          </p>
+            <div className="max-w-3xl">
+              <h1 className="text-4xl font-bold text-sky-700">
+                {isHospitalLoading ? 'Loading hospital...' : hospitalName}
+              </h1>
+
+              <button
+                className="mt-8 rounded-xl bg-white/80 px-6 py-3 
+                           font-medium text-blue-700 shadow-sm
+                           backdrop-blur transition hover:bg-white"
+              >
+                + Create Ward
+              </button>
+            </div>
+
+          </div>
         </div>
 
         {/* Ward List */}
         <div className="mt-8 space-y-4">
-          <h2 className="text-xl font-semibold">Ward List</h2>
+          <h2 className="text-xl font-semibold">รายการวอร์ด</h2>
 
           {isWardLoading ? (
             <p>Loading wards...</p>
@@ -125,42 +155,37 @@ export default function HomePage() {
             ))
           )}
         </div>
+
       </div>
 
-      {/* =============================== */}
       {/* Join Modal */}
-      {/* =============================== */}
-              <JoinWardModal
-                    open={isJoinOpen}
-                    onOpenChange={setIsJoinOpen}
-                    wardName={selectedWard?.wardName || ''}
-                    onJoinWard={async (code) => {
-              if (!selectedWard) {
-                return { success: false, error: 'ไม่พบวอร์ด' }
-              }
+      <JoinWardModal
+        open={isJoinOpen}
+        onOpenChange={setIsJoinOpen}
+        wardName={selectedWard?.wardName || ''}
+        onJoinWard={async (code) => {
+          if (!selectedWard) {
+            return { success: false, error: 'ไม่พบวอร์ด' }
+          }
 
-              try {
-                // 1️⃣ join ก่อน
-                await joinWard(selectedWard.wardId, code)
+          try {
+            await joinWard(selectedWard.wardId, code)
+            const data = await enterWard(selectedWard.wardId)
 
-                // 2️⃣ re-check membership
-                const data = await enterWard(selectedWard.wardId)
+            if (data.isMember) {
+              setIsJoinOpen(false)
+              router.push(`/ward/${selectedWard.wardId}`)
+              return { success: true }
+            }
 
-                if (data.isMember) {
-                  setIsJoinOpen(false)
-                  router.push(`/ward/${selectedWard.wardId}`)
-                  return { success: true }
-                }
-
-                return { success: false, error: 'เข้าวอร์ดไม่สำเร็จ' }
-
-              } catch (error: any) {
-                return {
-                  success: false,
-                  error: error.message || 'รหัสไม่ถูกต้อง',
-                }
-              }
-            }}
+            return { success: false, error: 'เข้าวอร์ดไม่สำเร็จ' }
+          } catch (error: any) {
+            return {
+              success: false,
+              error: error.message || 'รหัสไม่ถูกต้อง',
+            }
+          }
+        }}
       />
     </>
   )
