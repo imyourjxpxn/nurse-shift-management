@@ -130,33 +130,37 @@ export default function HomePage() {
       {/* =============================== */}
       {/* Join Modal */}
       {/* =============================== */}
-      <JoinWardModal
-        open={isJoinOpen}
-        onOpenChange={setIsJoinOpen}
-        wardName={selectedWard?.wardName || ''}
-        onJoinWard={async (code) => {
-           console.log("JOIN CLICKED")
-            console.log("CODE:", code)
-          if (!selectedWard) {
-            return { success: false, error: 'ไม่พบวอร์ด' }
-          }
+              <JoinWardModal
+                    open={isJoinOpen}
+                    onOpenChange={setIsJoinOpen}
+                    wardName={selectedWard?.wardName || ''}
+                    onJoinWard={async (code) => {
+              if (!selectedWard) {
+                return { success: false, error: 'ไม่พบวอร์ด' }
+              }
 
-          try {
-            await joinWard(selectedWard.wardId, code)
-            console.log("JOIN SUCCESS")
+              try {
+                // 1️⃣ join ก่อน
+                await joinWard(selectedWard.wardId, code)
 
-            setIsJoinOpen(false)
-            router.push(`/ward/${selectedWard.wardId}`)
+                // 2️⃣ re-check membership
+                const data = await enterWard(selectedWard.wardId)
 
-            return { success: true }
-          } catch (error: any) {
-            console.log("JOIN ERROR:", error)
-            return {
-              success: false,
-              error: error.message || 'รหัสไม่ถูกต้อง',
-            }
-          }
-        }}
+                if (data.isMember) {
+                  setIsJoinOpen(false)
+                  router.push(`/ward/${selectedWard.wardId}`)
+                  return { success: true }
+                }
+
+                return { success: false, error: 'เข้าวอร์ดไม่สำเร็จ' }
+
+              } catch (error: any) {
+                return {
+                  success: false,
+                  error: error.message || 'รหัสไม่ถูกต้อง',
+                }
+              }
+            }}
       />
     </>
   )

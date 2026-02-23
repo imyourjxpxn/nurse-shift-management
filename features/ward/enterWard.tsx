@@ -6,22 +6,43 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL
 /**
  * ใช้ตอนกด Enter Ward
  * - ถ้าเป็นสมาชิก → return ward detail
- * - ถ้าไม่เป็นสมาชิก → backend ควร return 403
  */
+
 
 export async function enterWard(
   wardId: string
 ): Promise<EnterWardResponse> {
 
+  console.log("===== ENTER WARD (FRONTEND) =====")
+  console.log("wardId:", wardId)
+
   const res = await apiFetch(
-    `${BASE_URL}/api/ward/enterWard/${wardId}`
+    `/api/ward/enterWard/${wardId}`,
+    {
+      method: 'GET',
+    }
   )
 
-  if (!res.ok) {
-    throw new Error('Cannot fetch ward')
+  console.log("status:", res.status)
+
+  let data: any = null
+
+  try {
+    data = await res.json()
+  } catch (err) {
+    console.warn("No JSON body returned")
   }
 
-  const data: EnterWardResponse = await res.json()
+  console.log("response data:", data)
+
+  if (!res.ok) {
+    const message =
+      data?.message ||
+      data?.errors?.[0]?.message ||
+      "Cannot check ward membership"
+
+    throw new Error(message)
+  }
 
   return data
 }
