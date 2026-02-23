@@ -174,7 +174,7 @@ export default function HomePage() {
 
             if (data.isMember) {
               setIsJoinOpen(false)
-              router.push(`/ward/${selectedWard.wardId}`)
+              router.push(`/wards/${selectedWard.wardId}`)
               return { success: true }
             }
 

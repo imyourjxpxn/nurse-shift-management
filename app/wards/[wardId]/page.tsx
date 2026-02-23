@@ -1,24 +1,75 @@
 'use client'
 
-import { useParams } from 'next/navigation'
+import { useState } from 'react'
 
-export default function WardDetailPage() {
-  const params = useParams()
-  const wardId = params.wardId
+import { WardDetail } from '@/components/ward/WardDetail'
+import { ShiftConfigPanel } from '@/components/ward/ShiftConfigPanel'
+import { RoleFilterTabs } from '@/components/ward/RoleFilterTabs'
+import { ScheduleTable } from '@/components/ward/ScheduleTable'
+import { NurseSummaryPanel } from '@/components/ward/NurseSummaryPanel'
+import { ShiftSelectModal } from '@/components/modals/ShiftSelectModal'
 
-  return (
-    <div className="min-h-screen p-8">
-      <h1 className="text-3xl font-bold">Ward Detail Page</h1>
 
-      <div className="mt-4 rounded-lg border p-6">
-        <p>
-          <strong>Ward ID:</strong> {wardId}
-        </p>
-      </div>
+export type ShiftType = 'ช' | 'บ' | 'ด' | 'E' | 'ลา' | 'Off'
+export default function SchedulePage() {
+  const [selectedRole, setSelectedRole] = useState<'HEAD' | 'NURSE'>('NURSE')
+  const [selectedCell, setSelectedCell] = useState<{
+    nurseId: string
+    day: number
+  } | null>(null)
 
-      <p className="mt-6 text-muted-foreground">
-        หน้านี้เอาไว้ทำตารางเวรต่อทีหลัง 🔥
-      </p>
-    </div>
-  )
+  const createEmptyMonth = (): ShiftType[][] =>
+    Array.from({ length: 31 }, () => [])
+
+  const [schedule, setSchedule] = useState<Record<string, ShiftType[][]>>({
+    nurse1: createEmptyMonth(),
+    nurse2: createEmptyMonth(),
+  })
+
+  const handleSaveShift = (shifts: ShiftType[]) => {
+  if (!selectedCell) return
+
+  setSchedule(prev => {
+    const newSchedule = { ...prev }
+
+    newSchedule[selectedCell.nurseId] =
+      newSchedule[selectedCell.nurseId].map((dayShifts, i) => {
+        if (i !== selectedCell.day) return dayShifts
+        return shifts.slice(0, 3) // จำกัด 3 เวร
+      })
+
+    return newSchedule
+  })
+
+  setSelectedCell(null)
 }
+
+    return (
+      <div className="p-6 space-y-6">
+        <WardDetail />
+
+        <ShiftConfigPanel />
+
+        <RoleFilterTabs
+          selected={selectedRole}
+          onChange={setSelectedRole}
+        />
+
+        <ScheduleTable
+          schedule={schedule}
+          onCellClick={(nurseId, day) =>
+            setSelectedCell({ nurseId, day })
+          }
+        />
+
+        <NurseSummaryPanel schedule={schedule} />
+
+        {selectedCell && (
+          <ShiftSelectModal
+            onClose={() => setSelectedCell(null)}
+            onSelect={handleSaveShift}
+          />
+        )}
+      </div>
+    )
+  }
