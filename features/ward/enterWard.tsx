@@ -33,6 +33,7 @@ export async function enterWard(
     console.warn("No JSON body returned")
   }
 
+  
   console.log("response data:", data)
 
   if (!res.ok) {
