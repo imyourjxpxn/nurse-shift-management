@@ -22,7 +22,7 @@ import { LegalContentModal } from '@/components/modals/legal-content-modal'
 import { TermsOfServiceContent, PrivacyPolicyContent } from '@/components/modals/legal-content'
 
 import { useAuth } from '@features/auth/auth-context'
-import  { getHospitals, type Hospital } from '@/features/Hospital/getHospital'
+import  { getHospitals, type Hospital } from '@/features/hospital/getHospital'
 
 export default function RegisterPage() {
   const router = useRouter()
