@@ -8,26 +8,26 @@ interface HospitalCardProps {
   onCreateWard?: () => void
 }
 
-export function HospitalCard({
-  hospitalName,
-  onCreateWard,
-}: HospitalCardProps) {
+export function HospitalCard({ hospitalName, onCreateWard }: HospitalCardProps) {
   return (
-    <div className="rounded-2xl bg-sky-100 p-6 shadow-sm">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-foreground">
+    <div className="w-full rounded-[24px] bg-sky-100 px-12 py-8 shadow-sm border border-sky-200/50">
+      
+      <div className="flex flex-col items-start gap-6"> 
+        
+        <h2 className="text-4xl font-bold text-slate-900">
           {hospitalName}
         </h2>
 
         {onCreateWard && (
           <Button
             onClick={onCreateWard}
-            className="gap-2 bg-sky-500 text-white hover:bg-sky-600"
+            className="h-12 gap-2 bg-[#00A3FF] px-8 text-white hover:bg-sky-600 rounded-xl shadow-md transition-all active:scale-95 text-base font-medium"
           >
-            <Plus className="size-4" />
+            <Plus className="size-3" />
             สร้างวอร์ด
           </Button>
         )}
+        
       </div>
     </div>
   )

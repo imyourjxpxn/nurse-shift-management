@@ -5,7 +5,7 @@ import { apiFetch } from "@/lib/api-client"
 /* ============================= */
 
 export interface User {
-  id: string
+  userId: string
   email: string
   displayName: string
   hospitalId: string
@@ -68,7 +68,7 @@ export async function getCurrentUser(): Promise<User | null> {
     const data = await res.json()
 
     return {
-      id: data.userId,
+      userId: data.userId,
       email: data.personalEmail,
       displayName: `${data.firstName ?? ""} ${data.lastName ?? ""}`.trim(),
       hospitalId: data.hospitalId,
@@ -109,7 +109,7 @@ export async function completeRegistration(
   const data = await res.json()
 
   return {
-    id: data.userId,
+    userId: data.userId,
     email: data.personalEmail ?? data.email ?? '',
     displayName: [data.firstName, data.lastName]
       .filter(Boolean)
@@ -129,7 +129,7 @@ export async function updateDisplayName(
 ): Promise<User> {
 
   const res = await apiFetch(
-    `/users/${user.id}`,
+    `/users/${user.userId}`,
     {
       method: 'PATCH',
       body: JSON.stringify({ displayName: newName }),

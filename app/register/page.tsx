@@ -111,7 +111,7 @@ export default function RegisterPage() {
     console.log("🚀 Sending API request...")
 
     const response = await completeRegistration({
-      userId: user.id,              // ✅ สำคัญมาก
+      userId: user.userId,     
       firstName,
       lastName,
       hospitalId: selectedHospital.hospitalId,

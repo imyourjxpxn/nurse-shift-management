@@ -1,8 +1,6 @@
 import { apiFetch } from '@/lib/api-client'
 import { EnterWardResponse } from './types'
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL
-
 /**
  * ใช้ตอนกด Enter Ward
  * - ถ้าเป็นสมาชิก → return ward detail

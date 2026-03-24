@@ -1,83 +1,54 @@
-export function ShiftConfigPanel() {
+// components/ward/ShiftConfigPanel.tsx
+import React from 'react'
+
+interface ShiftConfigPanelProps {
+  isEditable: boolean
+}
+
+export function ShiftConfigPanel({ isEditable }: ShiftConfigPanelProps) {
   return (
-    <div className="w-full min-w-[1500px] grid grid-cols-3 gap-6">
-
-      <ShiftCard
-        title="เวรเช้า : ช"
-        bg="bg-sky-100"
-        border="border-sky-300"
-      />
-
-      <ShiftCard
-        title="เวรบ่าย : บ"
-        bg="bg-orange-100"
-        border="border-orange-300"
-      />
-
-      <ShiftCard
-        title="เวรดึก : ด"
-        bg="bg-violet-100"
-        border="border-violet-300"
-      />
+    <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-6">
+      <ShiftCard title="เวรเช้า" bg="bg-sky-50" border="border-sky-100" isEditable={isEditable} defaultTime="08:00" />
+      <ShiftCard title="เวรบ่าย" bg="bg-orange-50" border="border-orange-100" isEditable={isEditable} defaultTime="16:00" />
+      <ShiftCard title="เวรดึก" bg="bg-violet-50" border="border-violet-100" isEditable={isEditable} defaultTime="00:00" />
     </div>
   )
 }
 
-function ShiftCard({
-  title,
-  bg,
-  border,
-}: {
-  title: string
-  bg: string
-  border: string
-}) {
+function ShiftCard({ title, bg, border, isEditable, defaultTime }: any) {
   return (
-    <div className={`${bg} ${border} border rounded-2xl p-5 shadow-sm`}>
-
-      <div className="text-sm font-semibold mb-4">
-        {title}
-      </div>
-
-      <div className="space-y-4 text-sm">
-
+    <div className={`${bg} ${border} border rounded-3xl p-6 shadow-sm`}>
+      <h3 className="text-sm font-bold text-slate-700 mb-4">{title}</h3>
+      <div className="space-y-4">
         <div>
-          <label className="block text-xs mb-1 text-gray-600">
-            จำนวนพยาบาล
-          </label>
+          <label className="block text-xs font-medium mb-1.5 text-slate-500">จำนวนพยาบาลที่ต้องการ</label>
           <input
             type="number"
-            min="0"
-            className="w-full bg-white rounded-lg px-3 py-2 border border-gray-200"
+            placeholder="ระบุจำนวน"
+            readOnly={!isEditable}
+            className="w-full bg-white/50 rounded-xl px-4 py-2 border border-slate-200 text-sm focus:bg-white transition-all outline-none"
           />
         </div>
-
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs mb-1 text-gray-600">
-              เริ่ม
-            </label>
+            <label className="block text-xs font-medium mb-1.5 text-slate-500">เริ่ม</label>
             <input
               type="time"
-              min="00:00"
-              max="23:59"
-              className="w-full bg-white rounded-lg px-3 py-2 border border-gray-200"
+              defaultValue={defaultTime} // ใส่ค่าเริ่มต้นเพื่อไม่ให้เป็น --:--
+              readOnly={!isEditable}
+              className="w-full bg-white/50 rounded-xl px-3 py-2 border border-slate-200 text-sm outline-none"
             />
           </div>
-
           <div>
-            <label className="block text-xs mb-1 text-gray-600">
-              ถึง
-            </label>
+            <label className="block text-xs font-medium mb-1.5 text-slate-500">ถึง</label>
             <input
               type="time"
-              min="00:00"
-              max="23:59"
-              className="w-full bg-white rounded-lg px-3 py-2 border border-gray-200"
+              defaultValue="16:00"
+              readOnly={!isEditable}
+              className="w-full bg-white/50 rounded-xl px-3 py-2 border border-slate-200 text-sm outline-none"
             />
           </div>
         </div>
-
       </div>
     </div>
   )

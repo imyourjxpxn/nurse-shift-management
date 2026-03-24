@@ -5,6 +5,8 @@ import { KeyRound } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
+  DialogHeader,
+  DialogTitle,  
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -52,16 +54,21 @@ export function JoinWardModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md" showCloseButton>
-        <div className="flex items-center gap-3 pb-2">
-          <div className="flex size-10 items-center justify-center rounded-full bg-sky-100">
-            <KeyRound className="size-5 text-sky-500" />
-          </div>
-          <div>
-            <h2 className="text-lg font-bold text-foreground">เข้าร่วมวอร์ด </h2>
-            <h2 className="text-sm text-sky-500">{wardName}</h2>
-          </div>
-        </div>
+      <DialogContent className="sm:max-w-md">
+        
+        {/* --- ส่วนที่เพิ่ม/แก้ไขอยู่ตรงนี้ครับ --- */}
+        <DialogHeader className="text-left"> 
+          <DialogTitle className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-full bg-sky-100">
+              <KeyRound className="size-5 text-sky-500" />
+            </div>
+            <div>
+              <span className="block text-lg font-bold text-foreground">เข้าร่วมวอร์ด</span>
+              <span className="block text-sm font-normal text-sky-500">{wardName}</span>
+            </div>
+          </DialogTitle>
+        </DialogHeader>
+        {/* ------------------------------------ */}
 
         <div className="py-4">
           <Input
@@ -86,7 +93,7 @@ export function JoinWardModal({
         </div>
 
         <div className="flex gap-3">
-          <Button variant="outline" className="flex-1 bg-transparent" onClick={handleClose}>
+          <Button variant="outline" className="flex-1" onClick={handleClose}>
             ยกเลิก
           </Button>
           <Button
