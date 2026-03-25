@@ -20,8 +20,9 @@
       }
     ],
     "paths": {
-       "@/*": ["./*"],
-        "@features/*": ["./features/*"]
+      "@/*": ["./src/*"],
+      "@features/*": ["./src/features/*"],
+      "@api/*": ["./src/lib/api-client"]
     }
   },
   "include": [
