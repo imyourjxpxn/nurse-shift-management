@@ -1,6 +1,8 @@
 export interface User {
   userId: string
   email: string
+  firstName: string
+  lastName: string
   displayName: string
   hospitalId: string
   profileCompleted: boolean
