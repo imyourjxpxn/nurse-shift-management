@@ -1,4 +1,4 @@
-import { apiFetch } from '@/src/lib/api-client'
+import { apiFetch } from '@/lib/api-client'
 
 export async function CreateWardmember(
   wardId: string,
