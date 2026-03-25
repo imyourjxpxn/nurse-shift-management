@@ -21,9 +21,10 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-white p-8">
+
       
       {/*Hospital Card*/}
-      <div className="mb-10">
+      <div className="mb-8">
         <HospitalCard 
           hospitalName={hospitalInfo?.name || '...'} 
           onCreateWard={() => setIsCreateOpen(true)} 
@@ -31,7 +32,7 @@ export default function HomePage() {
       </div>
 
       {/* Ward List */}
-      <div className="mt-8 bg-slate-50 p-6 rounded-xl">
+      <div className="mt-4 bg-slate-50 p-6 rounded-xl">
         <h2 className="text-2xl font-bold mb-6">
           รายการวอร์ดของคุณ
         </h2>

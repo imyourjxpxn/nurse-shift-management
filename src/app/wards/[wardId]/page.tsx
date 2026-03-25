@@ -8,6 +8,8 @@ import { ShiftConfigPanel } from '@/features/ward/components/ShiftConfigPanel'
 import { ScheduleTable } from '@/features/ward/components/ScheduleTable'
 import { NurseSummaryPanel } from '@/features/ward/components/NurseSummaryPanel'
 import { WardDetail as WardDetailType } from '@/features/ward/types'
+import { BackButton } from '@/components/navigation/BackButton'
+
 
 export default function SchedulePage() {
   const params = useParams()
@@ -54,6 +56,8 @@ export default function SchedulePage() {
 
   return (
     <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
+
+      <BackButton />
       
       {/* 1. ส่วน Header (ชื่อวอร์ด, เดือน, ปี) */}
       <WardDetail 
