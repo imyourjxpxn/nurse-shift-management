@@ -1,10 +1,10 @@
 'use client'
 
 import { HospitalCard } from '@/features/Hospital/components/hospital-card'
-import { WardListItem } from '@/features/ward/components/WardItemList'
+import { WardListItem } from '@/features/Hospital/components/WardItemList'
 import { CreateWardModal } from '@/features/ward/components/CreateWardModal'
-import { JoinWardModal } from '@/features/ward/components/openJoinModal'
-import { useDashboard } from '@/features/ward/hooks/useDashboard'
+import { JoinWardModal } from '@/features/Hospital/components/openJoinModal'
+import { useDashboard } from '@/features/Hospital/hooks/useDashboard'
 import { createWard } from '@/features/ward/api/CreateWard'
 
 export default function HomePage() {

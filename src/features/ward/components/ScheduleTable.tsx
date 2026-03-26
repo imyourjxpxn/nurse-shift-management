@@ -1,26 +1,24 @@
-// components/ward/ScheduleTable.tsx
 import React from "react"
 
 interface Props {
   schedule: Record<string, string[][]>
   onCellClick?: (nurseId: string, day: number) => void
+  daysInMonth: number; // ✅ รับค่าจำนวนวันจริงมาจากหน้า Page
 }
 
-export function ScheduleTable({ schedule, onCellClick }: Props) {
-  const days = Array.from({ length: 31 }, (_, i) => i)
+export function ScheduleTable({ schedule, onCellClick, daysInMonth }: Props) {
+  // ✅ เปลี่ยนจาก 31 เป็น daysInMonth เพื่อให้ตารางหด/ขยายตามเดือนจริง
+  const days = Array.from({ length: daysInMonth }, (_, i) => i)
 
   return (
     <div className="relative w-full overflow-auto max-h-[75vh] rounded-2xl border border-sky-100 shadow-sm bg-white">
       <table className="w-full border-separate border-spacing-0">
         
-        {/* 1. ส่วนหัวตาราง (รวม Legend และวันที่) */}
+        {/* 1. ส่วนหัวตาราง */}
         <thead className="sticky top-0 z-40 bg-sky-50">
-          
-
-          {/* แถวที่ 2: วันที่ (ส่วนแถบสีฟ้าที่วงไว้) */}
           <tr className="bg-sky-100 text-sky-900">
             <th className="sticky left-0 z-50 bg-sky-100 border-b border-r border-sky-200 p-3 text-left min-w-[180px] font-bold">
-              วันที่ (เดือน ม.ค.)
+              รายชื่อพยาบาล {/* ปรับข้อความให้สื่อความหมายชัดขึ้น */}
             </th>
             {days.map((d) => (
               <th key={d} className="border-b border-r border-sky-200 p-2 text-center min-w-[50px] font-bold">
@@ -35,7 +33,7 @@ export function ScheduleTable({ schedule, onCellClick }: Props) {
           {Object.entries(schedule).map(([nurseId, shifts]) => (
             <tr key={nurseId} className="hover:bg-sky-50/30 transition-colors">
               
-              {/* ✅ คอลัมน์ชื่อพยาบาล (Sticky ฝั่งซ้ายตามที่วงแดงไว้) */}
+              {/* ✅ คอลัมน์ชื่อพยาบาล (Sticky) */}
               <td className="sticky left-0 z-30 bg-white border-b border-r border-sky-100 p-4 font-medium text-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                 {nurseId}
               </td>
@@ -70,22 +68,15 @@ export function ScheduleTable({ schedule, onCellClick }: Props) {
   )
 }
 
-// Helper Function สำหรับสี
+// Helper Function สำหรับสี (UI เหมือนเดิม)
 function getShiftColor(s: string) {
   switch (s) {
     case 'ช': return "bg-sky-200 text-sky-800";
     case 'บ': return "bg-orange-200 text-orange-800";
     case 'ด': return "bg-violet-200 text-violet-800";
-    case 'E': return "bg-amber-200 text-amber-800";
+    case 'E': return "bg-amber-200 text-amber-800"; // เวร stand by
+    case 'o': return "bg-green-100 text-green-700"; // เพิ่มกรณี off คือวันหยุด
+    case 'ล': return "bg-slate-100 text-slate-600"; // เพิ่มกรณี ลา
     default: return "bg-rose-200 text-rose-800";
   }
-}
-
-function LegendItem({ color, label }: { color: string; label: string }) {
-  return (
-    <div className="flex items-center gap-1.5 whitespace-nowrap">
-      <div className={`w-3.5 h-3.5 rounded-sm ${color}`} />
-      <span>{label}</span>
-    </div>
-  )
 }

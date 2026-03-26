@@ -11,11 +11,14 @@ export interface WardDetail {
   wardId: string
   wardName: string
   hospitalId: string
+  hospitalName: string
   joinCode: string
   joinCodeStatus: string
   status: string
   createdBy: string
   updatedBy: string
+
+  userRole: 'head_nurse' | 'nurse'
 }
 
 

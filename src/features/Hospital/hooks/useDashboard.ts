@@ -1,11 +1,11 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/features/auth/context/auth-context'
-import { Ward } from '../types'
-import { getAllWards } from '../api/getAllWard'
+import { Ward } from '../../ward/types'
+import { getAllWards } from '../../ward/api/getAllWard'
 import { getUserHospital } from '@/features/Hospital/api/getUserHospital'
-import { enterWard } from '../api/enterWard'
-import { joinWard } from '../api/JoinWard'
+import { enterWard } from '../../ward/api/enterWard'
+import { joinWard } from '../../ward/api/JoinWard'
 
 export function useDashboard() {
   const router = useRouter()

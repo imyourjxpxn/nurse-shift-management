@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/features/auth/context/auth-context'
 import { WardDetail } from '@/features/ward/components/WardDetail'
 import { ShiftConfigPanel } from '@/features/ward/components/ShiftConfigPanel'
@@ -9,17 +9,27 @@ import { ScheduleTable } from '@/features/ward/components/ScheduleTable'
 import { NurseSummaryPanel } from '@/features/ward/components/NurseSummaryPanel'
 import { WardDetail as WardDetailType } from '@/features/ward/types'
 import { BackButton } from '@/components/navigation/BackButton'
+import { getWardById } from '@/features/ward/api/getWardById' 
 
+// นำเข้า Hook สำหรับจัดการปฏิทิน
+import { useCalendar } from '@/features/ward/hooks/useCalendar'
 
 export default function SchedulePage() {
   const params = useParams()
+  const router = useRouter()
   const wardId = params.wardId as string
   const { user, isLoading: isAuthLoading } = useAuth()
 
+  // ✅ ดึง Logic ปฏิทินมาใช้
+  const { month, year, monthName, daysInMonth, setMonth, setYear } = useCalendar()
+
   const [wardData, setWardData] = useState<WardDetailType | null>(null)
   const [loadingData, setLoadingData] = useState(true)
-  const [selectedCell, setSelectedCell] = useState<{nurseId: string, day: number} | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const [selectedCell, setSelectedCell] = useState<{ nurseId: string, day: number } | null>(null)
   
+  // Mock Schedule (ในอนาคตจะใช้ useEffect ดึงตาม month/year)
   const [schedule, setSchedule] = useState<Record<string, string[][]>>({
     "นางสาวปรียา วรกุล": Array.from({ length: 31 }, () => []),
     "นางสาวนพพร สุขใจ": Array.from({ length: 31 }, () => []),
@@ -30,17 +40,19 @@ export default function SchedulePage() {
       if (!wardId) return
       try {
         setLoadingData(true)
-        const mockData: WardDetailType = {
-          wardId: wardId,
-          wardName: "อายุรกรรมชาย (Med ชาย)",
-          hospitalId: "hosp_001",
-          joinCode: "CodeBRIX36924",
-          joinCodeStatus: "ACTIVE",
-          status: "OPEN",
-          createdBy: "user_123", 
-          updatedBy: "user_123"
-        }
-        setWardData(mockData)
+        setError(null)
+        const data = await getWardById(wardId)
+
+        // 🚀 แทรก Log ตรงนี้ครับ 🚀
+        console.log("=== DEBUG WARD DATA ===")
+        console.log("Full Object:", data)
+        console.log("Role from Backend:", data.userRole)
+        console.log("========================")
+
+        setWardData(data)
+      } catch (err: any) {
+        console.error("Fetch Ward Error:", err)
+        setError(err.message || "ไม่สามารถโหลดข้อมูลวอร์ดได้")
       } finally {
         setLoadingData(false)
       }
@@ -48,39 +60,49 @@ export default function SchedulePage() {
     initPage()
   }, [wardId])
 
-  if (isAuthLoading || loadingData || !wardData) {
-    return <div className="p-8 text-center text-slate-500">กำลังโหลดข้อมูลวอร์ด...</div>
+  if (isAuthLoading || loadingData) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="text-slate-500 font-medium animate-pulse">กำลังโหลดข้อมูลวอร์ด...</div>
+      </div>
+    )
   }
 
-  const isHeadNurse = user?.userId === wardData.createdBy
+  if (error || !wardData) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 p-4">
+        <p className="text-red-500 font-bold mb-4">{error}</p>
+        <button onClick={() => router.push('/dashboard')} className="text-blue-500 underline">กลับหน้าหลัก</button>
+      </div>
+    )
+  }
+
+  const isHeadNurse = wardData.userRole === 'head_nurse'
 
   return (
     <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
-
       <BackButton />
       
-      {/* 1. ส่วน Header (ชื่อวอร์ด, เดือน, ปี) */}
+      {/* ✅ 1. ส่งค่าจาก useCalendar ไปที่ WardDetail */}
       <WardDetail 
         ward={wardData}
-        hospitalName="อินทร์บุรี"
-        userId={user?.userId || ""}
-        month="มกราคม"
-        year="2026"
+        month={monthName} // แสดงชื่อเดือนภาษาไทยที่คำนวณจาก Hook
+        year={year.toString()} // แสดงปีที่เลือกจาก Hook
+        onMonthChange={setMonth} // ส่งฟังก์ชันไปให้ Dropdown เรียกใช้
+        onYearChange={setYear}
+        currentMonthIdx={month}
+        currentYear={year}
       />
 
       <div className="space-y-6">
-        
-        {/* ✅ 2.1 ShiftConfigPanel (จำนวนพยาบาล & เวลา) */}
         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
           <ShiftConfigPanel isEditable={isHeadNurse} />
         </div>
 
-        {/* ✅ 2.2 Card ตารางจัดเวร (รวมหัวข้อ + Legend + ตาราง) */}
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-slate-50">
             <h3 className="font-bold text-slate-800 text-lg mb-3">จัดตารางเวรพยาบาล</h3>
             
-            {/* Legend ย้ายมาอยู่ตรงนี้ เป็น Text ใต้หัวข้อ */}
             <div className="flex flex-wrap gap-x-6 gap-y-2">
               <LegendItem color="bg-sky-100" label="เวรเช้า : ช" />
               <LegendItem color="bg-orange-100" label="เวรบ่าย : บ" />
@@ -91,7 +113,9 @@ export default function SchedulePage() {
             </div>
           </div>
 
+          {/* ✅ 2. ส่ง daysInMonth ไปให้ตารางสร้าง Column ตามจำนวนวันจริง */}
           <ScheduleTable
+            daysInMonth={daysInMonth}
             schedule={schedule}
             onCellClick={(nurseId, day) => {
               if (isHeadNurse) setSelectedCell({ nurseId, day })
@@ -100,14 +124,11 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      {/* 3. สรุปเวรรายบุคคลด้านล่าง */}
       <NurseSummaryPanel schedule={schedule} />
-
     </div>
   )
 }
 
-// Component ย่อยสำหรับ Legend (ปรับขนาดให้เล็กลงกะทัดรัดขึ้น)
 function LegendItem({ color, label }: { color: string; label: string }) {
   return (
     <div className="flex items-center gap-2 whitespace-nowrap">
