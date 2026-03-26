@@ -51,19 +51,46 @@ export function useDashboard() {
     }
   }
 
-  // จัดการการ Join วอร์ด
-  const handleJoinWardAction = async (code: string) => {
-    if (!selectedWard) return { success: false, error: 'ไม่พบวอร์ด' }
-    try {
-      await joinWard(selectedWard.wardId, code)
-      await loadDashboardData()
-      setIsJoinOpen(false)
-      router.push(`/wards/${selectedWard.wardId}`)
-      return { success: true }
-    } catch (error: any) {
-      return { success: false, error: error.message || 'รหัสไม่ถูกต้อง' }
+ // จัดการการ Join วอร์ด
+const handleJoinWardAction = async (code: string) => {
+  if (!selectedWard) return { success: false, error: 'ไม่พบวอร์ดที่เลือก' }
+
+  try {
+    // 1. ยิง API Join วอร์ด
+    await joinWard(selectedWard.wardId, code)
+
+    // 2. ถ้าผ่าน: โหลดข้อมูลใหม่ (เพื่ออัปเดตสถานะสมาชิก)
+    await loadDashboardData()
+    
+    // 3. ปิด Modal และพาเข้าหน้าวอร์ด
+    setIsJoinOpen(false)
+    router.push(`/wards/${selectedWard.wardId}`)
+    
+    return { success: true }
+  } catch (error: any) {
+    console.error("Join Ward Error Details:", error)
+
+    /**
+     * 🛑 ดักจับ Error จาก Backend
+     * ถ้า Backend ส่ง 400 มา หรือ error message มีคำว่า 'Invalid'
+     */
+    let errorMessage = 'เกิดข้อผิดพลาดในการเชื่อมต่อ'
+
+    if (error.message.includes('400') || error.message.toLowerCase().includes('invalid')) {
+      errorMessage = 'รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบและลองอีกครั้ง'
+    } else if (error.message.toLowerCase().includes('already')) {
+      errorMessage = 'คุณเป็นสมาชิกของวอร์ดนี้อยู่แล้ว'
+    } else {
+      // กรณีอื่นๆ เช่น Server 500 หรือเน็ตหลุด
+      errorMessage = error.message || 'ไม่สามารถเข้าร่วมวอร์ดได้ในขณะนี้'
+    }
+
+    return { 
+      success: false, 
+      error: errorMessage 
     }
   }
+}
 
   useEffect(() => {
     if (!isAuthLoading && isAuthenticated) {

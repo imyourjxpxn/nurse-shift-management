@@ -1,5 +1,5 @@
-import { apiFetch } from "src/lib/api-client"
-import { User, CompleteRegistrationPayload } from "../types"
+import { apiFetch } from "@/lib/api-client" // เช็ค path ให้ชัวร์นะครับ (ปกติจะเป็น @/lib/...)
+import { User, CompleteRegistrationPayload } from "../../user/types"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -18,30 +18,57 @@ export const loginWithGoogle = () => {
 
 // 2. User Actions
 export const getCurrentUser = async (): Promise<User | null> => {
-  const res = await apiFetch(`${API_URL}/api/auth/me`).catch(() => null)
-  if (!res?.ok) return null
-  const data = await res.json()
-  return {
-    userId: data.userId,
-    email: data.personalEmail,
-    displayName: `${data.firstName ?? ""} ${data.lastName ?? ""}`.trim(),
-    hospitalId: data.hospitalId,
-    profileCompleted: data.profileCompleted,
+  try {
+    const res = await apiFetch(`${API_URL}/api/auth/me`)
+    
+    if (!res.ok) return null
+    
+    const data = await res.json()
+
+    return {
+      userId: data.userId,
+      email: data.personalEmail || data.email,
+      firstName: data.firstName ?? "",
+      lastName: data.lastName ?? "",
+      hospitalId: data.hospitalId,
+      profileCompleted: data.profileCompleted,
+    }
+  } catch (error) {
+    console.error("GetCurrentUser failed:", error)
+    return null
   }
 }
 
 export const completeRegistration = async (payload: CompleteRegistrationPayload): Promise<User> => {
-  const res = await apiFetch('/api/user/updateForCompleteProfile', {
+  const res = await apiFetch(`${API_URL}/api/user/updateForCompleteProfile`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
   })
+
+  if (!res.ok) {
+    const error = await res.json()
+    throw new Error(error.message || 'ลงทะเบียนไม่สำเร็จ')
+  }
+
   return res.json()
 }
 
 export const logout = () => 
   apiFetch(`${API_URL}/api/auth/logout`, { method: "POST" })
-    .finally(() => localStorage.removeItem("accessToken"))
+    .finally(() => {
+      localStorage.removeItem("accessToken")
+      clearPersistedUser()
+    })
 
 // 3. Storage Helpers
-export const persistUser = (u: User) => localStorage.setItem('user', JSON.stringify(u))
-export const clearPersistedUser = () => localStorage.removeItem('user')
+export const persistUser = (u: User) => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('user', JSON.stringify(u))
+  }
+}
+
+export const clearPersistedUser = () => {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('user')
+  }
+}

@@ -1,6 +1,6 @@
 'use client'
 
-import { Users, Trash2 } from 'lucide-react'
+import { Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Ward } from '@/features/ward/types'
 
@@ -13,9 +13,7 @@ interface WardListItemProps {
 
 export function WardListItem({
   ward,
-  isHeadNurse,
   onEnterWard,
-  onDeleteWard,
 }: WardListItemProps) {
 
   
@@ -49,16 +47,6 @@ export function WardListItem({
           เข้าสู่วอร์ด
         </Button>
 
-        {isHeadNurse && (
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-9 border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600 bg-transparent"
-            onClick={() => onDeleteWard(ward)}
-          >
-            <Trash2 className="size-4" />
-          </Button>
-        )}
       </div>
     </div>
   )

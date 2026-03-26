@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useCallback, useState, createContext, useContext, type ReactNode } from 'react'
+import { useEffect, useCallback, useState, createContext, useContext, useMemo, type ReactNode } from 'react'
 import { useRouter } from "next/navigation"
 import * as authService from '@/features/auth/api/auth-service'
-import type { User, CompleteRegistrationPayload } from '@/features/auth/types'
+import type { User, CompleteRegistrationPayload } from '@/features/user/types'
 
+// เพิ่ม displayName เข้าไปใน interface ของ Context เพื่อให้เรียกใช้ได้โดยไม่พัง
 interface AuthContextType {
-  user: User | null
+  user: (User & { displayName: string }) | null
   isLoading: boolean
   isAuthenticated: boolean
   loginWithGoogle: () => void
@@ -23,18 +24,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   /**
-   * 1. ฟังก์ชันตัวกลางสำหรับจัดการข้อมูล User ก่อนเอาเข้า State
-   * ทำหน้าที่รวม firstName + lastName เป็น displayName และจัดการ Persistence
+   * 1. ฟังก์ชันคำนวณ displayName แบบ Memoized 
+   * จะทำงานใหม่เฉพาะเมื่อข้อมูล user เปลี่ยนเท่านั้น
+   */
+  const displayName = useMemo(() => {
+    if (!user) return null
+    return `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'ตั้งชื่อผู้ใช้'
+  }, [user])
+
+  /**
+   * 2. ฟังก์ชันจัดการข้อมูล User เข้า State และ Storage
+   * เก็บเฉพาะข้อมูลตาม User Type จริง (ไม่มี displayName)
    */
   const handleSetUser = useCallback((userData: User | null) => {
     if (userData) {
-      // รวมชื่อเพื่อให้ UI (Header) ยังใช้งาน .displayName ได้ปกติ
-      const userWithDisplay = {
-        ...userData,
-        displayName: `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'ตั้งชื่อผู้ใช้'
-      }
-      setUser(userWithDisplay)
-      authService.persistUser(userWithDisplay)
+      setUser(userData)
+      authService.persistUser(userData)
     } else {
       setUser(null)
       authService.clearPersistedUser()
@@ -42,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   /**
-   * 2. ฟังก์ชันโหลดข้อมูล User จาก API
+   * 3. ฟังก์ชันโหลดข้อมูล User จาก API
    */
   const fetchUser = useCallback(async () => {
     try {
@@ -55,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [handleSetUser])
 
   /**
-   * 3. Initial Load: เช็ค Token และดึงข้อมูลครั้งแรกเมื่อเปิดแอป
+   * 4. Initial Load
    */
   useEffect(() => {
     const init = async () => {
@@ -72,36 +77,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchUser])
 
   /**
-   * 4. ออกจากระบบ
+   * 5. ออกจากระบบ
    */
   const logout = useCallback(async () => {
     try {
       await authService.logout()
     } finally {
-      handleSetUser(null) // ล้างข้อมูลใน State และ LocalStorage
+      handleSetUser(null)
       router.replace("/login")
     }
   }, [handleSetUser, router])
 
   /**
-   * 5. ฟังก์ชันสำหรับ Refresh ข้อมูล (เรียกใช้จากหน้า Change Name)
+   * 6. รีเฟรชข้อมูล (เรียกใช้จากหน้า Profile หลังบันทึกสำเร็จ)
    */
   const refreshUser = useCallback(async () => {
     await fetchUser()
   }, [fetchUser])
 
   /**
-   * 6. จัดการขั้นตอนลงทะเบียนเพิ่มเติมหลัง Login ครั้งแรก
+   * 7. ลงทะเบียนเพิ่มเติม
    */
   const completeRegistration = useCallback(async (p: CompleteRegistrationPayload) => {
     const newUser = await authService.completeRegistration(p)
-    handleSetUser(newUser) // จัดการชื่อและเก็บลง Storage ทันที
+    handleSetUser(newUser)
     return newUser
   }, [handleSetUser])
 
   return (
     <AuthContext.Provider value={{ 
-      user, 
+      // ส่ง user ออกไปพร้อมกับแนบ displayName เข้าไปด้วย
+      user: user ? { ...user, displayName: displayName! } : null,
       isLoading, 
       isAuthenticated: !!user, 
       loginWithGoogle: authService.loginWithGoogle,
