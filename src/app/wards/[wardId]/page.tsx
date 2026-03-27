@@ -10,8 +10,6 @@ import { NurseSummaryPanel } from '@/features/ward/components/NurseSummaryPanel'
 import { WardDetail as WardDetailType } from '@/features/ward/types'
 import { BackButton } from '@/components/navigation/BackButton'
 import { getWardById } from '@/features/ward/api/getWardById' 
-
-// นำเข้า Hook สำหรับจัดการปฏิทิน
 import { useCalendar } from '@/features/ward/hooks/useCalendar'
 
 export default function SchedulePage() {
@@ -19,21 +17,15 @@ export default function SchedulePage() {
   const router = useRouter()
   const wardId = params.wardId as string
   const { user, isLoading: isAuthLoading } = useAuth()
-
-  // ✅ ดึง Logic ปฏิทินมาใช้
   const { month, year, monthName, daysInMonth, setMonth, setYear } = useCalendar()
 
   const [wardData, setWardData] = useState<WardDetailType | null>(null)
   const [loadingData, setLoadingData] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
   const [selectedCell, setSelectedCell] = useState<{ nurseId: string, day: number } | null>(null)
   
-  // Mock Schedule (ในอนาคตจะใช้ useEffect ดึงตาม month/year)
-  const [schedule, setSchedule] = useState<Record<string, string[][]>>({
-    "นางสาวปรียา วรกุล": Array.from({ length: 31 }, () => []),
-    "นางสาวนพพร สุขใจ": Array.from({ length: 31 }, () => []),
-  })
+  // ✅ แก้ไข Mock Schedule ให้เป็นรูปแบบ [ ["ช", "บ"], ["ด"], ["o"] ]
+  const [schedule, setSchedule] = useState<Record<string, string[][]>>({})
 
   useEffect(() => {
     async function initPage() {
@@ -42,14 +34,24 @@ export default function SchedulePage() {
         setLoadingData(true)
         setError(null)
         const data = await getWardById(wardId)
-
-        // 🚀 แทรก Log ตรงนี้ครับ 🚀
-        console.log("=== DEBUG WARD DATA ===")
-        console.log("Full Object:", data)
-        console.log("Role from Backend:", data.userRole)
-        console.log("========================")
-
         setWardData(data)
+
+        // ✅ Mock ข้อมูลเริ่มต้นตามจำนวนวันในเดือนนั้นๆ
+        const mockData: Record<string, string[][]> = {
+          "นางสาวปรียา วรกุล": Array.from({ length: daysInMonth }, (_, i) => {
+            if (i === 0) return ["ช", "บ", "ด"] // วันแรกควง 3 เวร
+            if (i === 1) return ["o"]           // วันสองหยุด
+            if (i === 2) return ["ช"]           // วันสามเช้า
+            return []
+          }),
+          "นางสาวนพพร สุขใจ": Array.from({ length: daysInMonth }, (_, i) => {
+            if (i === 0) return ["ด"]
+            if (i === 3) return ["E"]           // วันที่สี่เวรฉุกเฉิน
+            return []
+          }),
+        }
+        setSchedule(mockData)
+
       } catch (err: any) {
         console.error("Fetch Ward Error:", err)
         setError(err.message || "ไม่สามารถโหลดข้อมูลวอร์ดได้")
@@ -58,7 +60,7 @@ export default function SchedulePage() {
       }
     }
     initPage()
-  }, [wardId])
+  }, [wardId, daysInMonth]) // เพิ่ม daysInMonth เพื่อให้ล้างค่าเมื่อเปลี่ยนเดือน
 
   if (isAuthLoading || loadingData) {
     return (
@@ -83,12 +85,11 @@ export default function SchedulePage() {
     <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
       <BackButton />
       
-      {/* ✅ 1. ส่งค่าจาก useCalendar ไปที่ WardDetail */}
       <WardDetail 
         ward={wardData}
-        month={monthName} // แสดงชื่อเดือนภาษาไทยที่คำนวณจาก Hook
-        year={year.toString()} // แสดงปีที่เลือกจาก Hook
-        onMonthChange={setMonth} // ส่งฟังก์ชันไปให้ Dropdown เรียกใช้
+        month={monthName}
+        year={year.toString()}
+        onMonthChange={setMonth}
         onYearChange={setYear}
         currentMonthIdx={month}
         currentYear={year}
@@ -102,7 +103,6 @@ export default function SchedulePage() {
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-slate-50">
             <h3 className="font-bold text-slate-800 text-lg mb-3">จัดตารางเวรพยาบาล</h3>
-            
             <div className="flex flex-wrap gap-x-6 gap-y-2">
               <LegendItem color="bg-sky-100" label="เวรเช้า : ช" />
               <LegendItem color="bg-orange-100" label="เวรบ่าย : บ" />
@@ -113,12 +113,14 @@ export default function SchedulePage() {
             </div>
           </div>
 
-          {/* ✅ 2. ส่ง daysInMonth ไปให้ตารางสร้าง Column ตามจำนวนวันจริง */}
           <ScheduleTable
             daysInMonth={daysInMonth}
             schedule={schedule}
             onCellClick={(nurseId, day) => {
-              if (isHeadNurse) setSelectedCell({ nurseId, day })
+              if (isHeadNurse) {
+                console.log(`เปิด Modal สำหรับ ${nurseId} วันที่ ${day + 1}`);
+                setSelectedCell({ nurseId, day });
+              }
             }}
           />
         </div>
