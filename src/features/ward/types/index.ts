@@ -27,3 +27,18 @@ export interface EnterWardResponse {
   isMember: boolean
 }
 
+export enum ShiftTemplateType {
+  MORNING = 'morning',
+  AFTERNOON = 'afternoon',
+  NIGHT = 'night'
+}
+
+export interface ShiftTemplate {
+  shiftTemplateId: string;
+  wardId: string;
+  type: ShiftTemplateType;
+  startTime: string;
+  endTime: string;
+  requiredPeople: number;
+}
+

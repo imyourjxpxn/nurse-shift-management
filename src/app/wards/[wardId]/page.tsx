@@ -1,141 +1,146 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { useAuth } from '@/features/auth/context/auth-context'
-import { WardDetail } from '@/features/ward/components/WardDetail'
-import { ShiftConfigPanel } from '@/features/ward/components/ShiftConfigPanel'
-import { ScheduleTable } from '@/features/ward/components/ScheduleTable'
-import { NurseSummaryPanel } from '@/features/ward/components/NurseSummaryPanel'
-import { WardDetail as WardDetailType } from '@/features/ward/types'
-import { BackButton } from '@/components/navigation/BackButton'
-import { getWardById } from '@/features/ward/api/getWardById' 
-import { useCalendar } from '@/features/ward/hooks/useCalendar'
+import React, { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
+import { ShiftTemplate } from '@/features/ward/types'
+import { getShiftTemplates } from '@/features/ward/api/getShiftTemplates'
 
-export default function SchedulePage() {
+interface ShiftConfigPanelProps {
+  isEditable: boolean
+}
+
+export function ShiftConfigPanel({ isEditable }: ShiftConfigPanelProps) {
   const params = useParams()
-  const router = useRouter()
   const wardId = params.wardId as string
-  const { user, isLoading: isAuthLoading } = useAuth()
-  const { month, year, monthName, daysInMonth, setMonth, setYear } = useCalendar()
-
-  const [wardData, setWardData] = useState<WardDetailType | null>(null)
-  const [loadingData, setLoadingData] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [selectedCell, setSelectedCell] = useState<{ nurseId: string, day: number } | null>(null)
   
-  // ✅ แก้ไข Mock Schedule ให้เป็นรูปแบบ [ ["ช", "บ"], ["ด"], ["o"] ]
-  const [schedule, setSchedule] = useState<Record<string, string[][]>>({})
+  const [templates, setTemplates] = useState<ShiftTemplate[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    async function initPage() {
+    async function loadData() {
       if (!wardId) return
       try {
-        setLoadingData(true)
-        setError(null)
-        const data = await getWardById(wardId)
-        setWardData(data)
-
-        // ✅ Mock ข้อมูลเริ่มต้นตามจำนวนวันในเดือนนั้นๆ
-        const mockData: Record<string, string[][]> = {
-          "นางสาวปรียา วรกุล": Array.from({ length: daysInMonth }, (_, i) => {
-            if (i === 0) return ["ช", "บ", "ด"] // วันแรกควง 3 เวร
-            if (i === 1) return ["o"]           // วันสองหยุด
-            if (i === 2) return ["ช"]           // วันสามเช้า
-            return []
-          }),
-          "นางสาวนพพร สุขใจ": Array.from({ length: daysInMonth }, (_, i) => {
-            if (i === 0) return ["ด"]
-            if (i === 3) return ["E"]           // วันที่สี่เวรฉุกเฉิน
-            return []
-          }),
-        }
-        setSchedule(mockData)
-
-      } catch (err: any) {
-        console.error("Fetch Ward Error:", err)
-        setError(err.message || "ไม่สามารถโหลดข้อมูลวอร์ดได้")
+        setLoading(true)
+        const data = await getShiftTemplates(wardId)
+        // ตรวจสอบใน Console ว่า endTime กับ requiredPeople มาไหม
+        console.log("Check API Data:", data) 
+        setTemplates(data)
+      } catch (error) {
+        console.error("Error loading templates:", error)
       } finally {
-        setLoadingData(false)
+        setLoading(false)
       }
     }
-    initPage()
-  }, [wardId, daysInMonth]) // เพิ่ม daysInMonth เพื่อให้ล้างค่าเมื่อเปลี่ยนเดือน
+    loadData()
+  }, [wardId])
 
-  if (isAuthLoading || loadingData) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <div className="text-slate-500 font-medium animate-pulse">กำลังโหลดข้อมูลวอร์ด...</div>
-      </div>
-    )
-  }
+  // ฟังก์ชันหาข้อมูลแยกตาม Type โดยเช็คทั้งตัวเล็กและตัวใหญ่เพื่อความชัวร์
+  const getShiftByType = (type: string) => 
+    templates.find(t => t.type.toLowerCase() === type.toLowerCase())
 
-  if (error || !wardData) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 p-4">
-        <p className="text-red-500 font-bold mb-4">{error}</p>
-        <button onClick={() => router.push('/dashboard')} className="text-blue-500 underline">กลับหน้าหลัก</button>
-      </div>
-    )
-  }
-
-  const isHeadNurse = wardData.userRole === 'head_nurse'
+  if (loading) return <div className="p-4 text-center text-slate-400 animate-pulse font-bold">กำลังโหลดข้อมูล...</div>
 
   return (
-    <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
-      <BackButton />
-      
-      <WardDetail 
-        ward={wardData}
-        month={monthName}
-        year={year.toString()}
-        onMonthChange={setMonth}
-        onYearChange={setYear}
-        currentMonthIdx={month}
-        currentYear={year}
+    <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-6">
+      <ShiftCard 
+        title="เวรเช้า" 
+        bg="bg-sky-50" 
+        border="border-sky-100" 
+        isEditable={isEditable} 
+        data={getShiftByType('morning')} 
+        defaultStart="08:00"
       />
-
-      <div className="space-y-6">
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-          <ShiftConfigPanel isEditable={isHeadNurse} />
-        </div>
-
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-slate-50">
-            <h3 className="font-bold text-slate-800 text-lg mb-3">จัดตารางเวรพยาบาล</h3>
-            <div className="flex flex-wrap gap-x-6 gap-y-2">
-              <LegendItem color="bg-sky-100" label="เวรเช้า : ช" />
-              <LegendItem color="bg-orange-100" label="เวรบ่าย : บ" />
-              <LegendItem color="bg-violet-100" label="เวรดึก : ด" />
-              <LegendItem color="bg-rose-100" label="Emergency : E" />
-              <LegendItem color="bg-slate-100" label="ล : ลา" />
-              <LegendItem color="bg-green-100" label="o : off" />
-            </div>
-          </div>
-
-          <ScheduleTable
-            daysInMonth={daysInMonth}
-            schedule={schedule}
-            onCellClick={(nurseId, day) => {
-              if (isHeadNurse) {
-                console.log(`เปิด Modal สำหรับ ${nurseId} วันที่ ${day + 1}`);
-                setSelectedCell({ nurseId, day });
-              }
-            }}
-          />
-        </div>
-      </div>
-
-      <NurseSummaryPanel schedule={schedule} />
+      <ShiftCard 
+        title="เวรบ่าย" 
+        bg="bg-orange-50" 
+        border="border-orange-100" 
+        isEditable={isEditable} 
+        data={getShiftByType('afternoon')} 
+        defaultStart="16:00"
+      />
+      <ShiftCard 
+        title="เวรดึก" 
+        bg="bg-violet-50" 
+        border="border-violet-100" 
+        isEditable={isEditable} 
+        data={getShiftByType('night')} 
+        defaultStart="00:00"
+      />
     </div>
   )
 }
 
-function LegendItem({ color, label }: { color: string; label: string }) {
+function ShiftCard({ title, bg, border, isEditable, data, defaultStart }: any) {
+  // สร้าง Local State เพื่อรองรับการพิมพ์เอง
+  const [required, setRequired] = useState('')
+  const [start, setStart] = useState('')
+  const [end, setEnd] = useState('')
+
+  // เมื่อข้อมูลจาก API (data) เปลี่ยน ให้เอาค่ามาใส่ใน Input
+  useEffect(() => {
+    if (data) {
+      // ✅ ดึง requiredPeople (ถ้าไม่มีให้เป็นค่าว่าง)
+      setRequired(data.requiredPeople?.toString() || '')
+      // ✅ ดึง startTime
+      setStart(data.startTime || defaultStart)
+      // ✅ ดึง endTime (ตรวจสอบชื่อ Property ให้ตรงกับ Schema)
+      setEnd(data.endTime || '')
+    }
+  }, [data, defaultStart])
+
+  // ฟังก์ชันเติม : อัตโนมัติ (พิมพ์ 0805 -> 08:05)
+  const handleTimeChange = (val: string, setter: (v: string) => void) => {
+    let digits = val.replace(/\D/g, '').slice(0, 4)
+    if (digits.length >= 3) {
+      setter(`${digits.slice(0, 2)}:${digits.slice(2)}`)
+    } else {
+      setter(digits)
+    }
+  }
+
   return (
-    <div className="flex items-center gap-2 whitespace-nowrap">
-      <div className={`w-3.5 h-3.5 rounded border ${color} border-slate-200`} />
-      <span className="text-xs font-medium text-slate-500">{label}</span>
+    <div className={`${bg} ${border} border rounded-3xl p-6 shadow-sm`}>
+      <h3 className="text-sm font-bold text-slate-700 mb-4">{title}</h3>
+      <div className="space-y-4">
+        <div>
+          <label className="block text-xs font-medium mb-1.5 text-slate-500 tracking-tight">จำนวนพยาบาลที่ต้องการ</label>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={required}
+            onChange={(e) => setRequired(e.target.value.replace(/\D/g, ''))}
+            placeholder="0"
+            disabled={!isEditable}
+            className="w-full bg-white border-2 border-slate-100 rounded-2xl px-4 py-2 text-lg font-bold text-slate-700 focus:border-blue-400 outline-none transition-all"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium mb-1.5 text-slate-500">เริ่ม</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="00:00"
+              value={start}
+              onChange={(e) => handleTimeChange(e.target.value, setStart)}
+              disabled={!isEditable}
+              className="w-full bg-white border-2 border-slate-100 rounded-2xl px-3 py-2 text-center text-lg font-bold text-slate-700 focus:border-blue-400 outline-none transition-all"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1.5 text-slate-500">ถึง</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="00:00"
+              value={end}
+              onChange={(e) => handleTimeChange(e.target.value, setEnd)}
+              disabled={!isEditable}
+              className="w-full bg-white border-2 border-slate-100 rounded-2xl px-3 py-2 text-center text-lg font-bold text-slate-700 focus:border-blue-400 outline-none transition-all"
+            />
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
