@@ -42,3 +42,22 @@ export interface ShiftTemplate {
   requiredPeople: number;
 }
 
+export interface SaveShiftPayload {
+  wardId: string
+  type: ShiftTemplateType
+  startTime: string
+  endTime: string
+  requiredPeople: number
+  shiftTemplateId?: string // ส่งมาเพื่อบอกว่าเป็น Update
+}
+
+
+// ✅ เพิ่มอันนี้เข้าไปครับ สำหรับใช้รับ-ส่งข้อมูลระหว่าง Component
+export interface ShiftSyncData {
+  shiftTemplateId?: string;
+  startTime: string;
+  endTime: string;
+  requiredPeople: number;
+  hasError: boolean;
+}
+

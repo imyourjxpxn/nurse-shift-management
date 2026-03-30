@@ -1,3 +1,5 @@
+'use client'
+
 import { 
   History, 
   Trash2, 
@@ -20,6 +22,8 @@ interface Props {
   currentYear: number;
   onMonthChange: (m: number) => void;
   onYearChange: (y: number) => void;
+  onSave?: () => void;     // 🚩 เพิ่มกลับเข้ามาเพื่อเชื่อมกับ SchedulePage
+  isSaving?: boolean;      // 🚩 เพิ่มกลับเข้ามาเพื่อเช็คสถานะการบันทึก
 }
 
 const MONTHS_TH = [
@@ -27,17 +31,17 @@ const MONTHS_TH = [
   "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
 ];
 
-// สร้างรายการปี (ย้อนหลัง 1 ปี และล่วงหน้า 3 ปี)
+// สร้างรายการปี (ย้อนหลัง 1 ปี และล่วงหน้า 3 ปี ตามโค้ดเดิมของคุณ)
 const YEARS = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 1 + i);
 
 export function WardDetail({ 
   ward, 
-  month, 
-  year, 
   currentMonthIdx, 
   currentYear, 
   onMonthChange, 
-  onYearChange 
+  onYearChange,
+  onSave,
+  isSaving
 }: Props) {
   
   const isHeadNurse = ward.userRole === 'head_nurse';
@@ -121,7 +125,7 @@ export function WardDetail({
           </div>
         </div>
 
-        {/* ฝั่งขวา: ปุ่ม Action */}
+        {/* ฝั่งขวา: ปุ่ม Action (คืนค่าเดิมทั้งหมด) */}
         <div className="flex items-center gap-3 pt-4">
           {isHeadNurse ? (
             <>
@@ -152,8 +156,14 @@ export function WardDetail({
             Export
           </button>
 
+          {/* 🚩 ปุ่ม Save (ใช้ UI เดิมที่คุณทำไว้) */}
           {isHeadNurse && (
-            <button className="p-3 border border-slate-200 text-slate-500 rounded-2xl hover:bg-slate-50 transition active:scale-95 shadow-sm">
+            <button 
+              onClick={onSave} 
+              disabled={isSaving}
+              className={`p-3 border border-slate-200 rounded-2xl transition active:scale-95 shadow-sm 
+                ${isSaving ? 'bg-slate-100 text-slate-300' : 'text-slate-500 hover:bg-slate-50'}`}
+            >
               <Save size={20} />
             </button>
           )}

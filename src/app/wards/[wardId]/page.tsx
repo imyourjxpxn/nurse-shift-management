@@ -1,98 +1,120 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { useAuth } from '@/features/auth/context/auth-context'
+import { useState } from 'react'
+import { useParams } from 'next/navigation'
+import { AlertCircle } from 'lucide-react'
+
+// Components
 import { WardDetail } from '@/features/ward/components/WardDetail'
 import { ShiftConfigPanel } from '@/features/ward/components/ShiftConfigPanel'
 import { ScheduleTable } from '@/features/ward/components/ScheduleTable'
 import { NurseSummaryPanel } from '@/features/ward/components/NurseSummaryPanel'
-import { WardDetail as WardDetailType, ShiftTemplate } from '@/features/ward/types'
+import { ValidationErrorSidebar } from '@/features/ward/components/ValidationErrorSidebar'
 import { BackButton } from '@/components/navigation/BackButton'
-import { getWardById } from '@/features/ward/api/getWardById' 
-import { getShiftTemplates } from '@/features/ward/api/getShiftTemplates'
+
+// Hooks
 import { useCalendar } from '@/features/ward/hooks/useCalendar'
+import { useShiftValidation } from '@/features/ward/hooks/useShiftTempValidation'
+import { useScheduleData } from '@/features/ward/hooks/useScheduleData'
+import { useSaveConfig } from '@/features/ward/hooks/useSaveConfig'
 
 export default function SchedulePage() {
-  const params = useParams()
-  const router = useRouter()
-  const wardId = params.wardId as string
-  const { user, isLoading: isAuthLoading } = useAuth()
-  const { month, year, monthName, daysInMonth, setMonth, setYear } = useCalendar()
+  const { wardId } = useParams() as { wardId: string }
+  
+  // 🚩 ดึงข้อมูลปฏิทิน (เดือน/ปี/จำนวนวัน)
+  const { 
+    month, 
+    year, 
+    monthName, 
+    daysInMonth, 
+    setMonth, 
+    setYear 
+  } = useCalendar()
 
-  const [wardData, setWardData] = useState<WardDetailType | null>(null)
-  const [shiftTemplates, setShiftTemplates] = useState<ShiftTemplate[]>([])
-  const [loadingData, setLoadingData] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [schedule, setSchedule] = useState<Record<string, string[][]>>({})
+  // State สำหรับเก็บข้อมูลที่ Sync มาจาก ShiftCard
+  const [configData, setConfigData] = useState<Record<string, any>>({})
 
-  useEffect(() => {
-    async function initPage() {
-      if (!wardId) return
-      try {
-        setLoadingData(true)
-        setError(null)
-        
-        // ✅ ดึงข้อมูล Ward และ Shift Templates พร้อมกัน
-        const [ward, templates] = await Promise.all([
-          getWardById(wardId),
-          getShiftTemplates(wardId)
-        ])
-        
-        setWardData(ward)
-        setShiftTemplates(templates || [])
+  // 1. 🚩 จัดการข้อมูลหลัก (Ward, Templates, Schedule) ผ่าน Custom Hook
+  const { 
+    wardData, 
+    shiftTemplates, 
+    loadingData, 
+    schedule, 
+    refresh 
+  } = useScheduleData(wardId, daysInMonth, month, year)
+  
+  // 2. 🚩 จัดการ Validation (รับค่าเป็น messages เพราะเราปรับ Hook ให้ส่งเป็น Array)
+  const { isValid, messages } = useShiftValidation(configData)
 
-        // ✅ Mock ข้อมูลเริ่มต้น
-        const mockData: Record<string, string[][]> = {
-          "นางสาวปรียา วรกุล": Array.from({ length: daysInMonth }, (_, i) => i === 0 ? ["ช", "บ", "ด"] : []),
-          "นางสาวนพพร สุขใจ": Array.from({ length: daysInMonth }, (_, i) => i === 0 ? ["ด"] : []),
-        }
-        setSchedule(mockData)
+  // 3. 🚩 จัดการการบันทึก (เชื่อมต่อ messages เข้ากับ validationMsg)
+  const { 
+    isSaving, 
+    validationErrors, 
+    isSidebarOpen, 
+    setIsSidebarOpen, 
+    setValidationErrors, 
+    handleSave 
+  } = useSaveConfig({
+    wardId, 
+    isFormValid: isValid, 
+    validationMsg: messages // ✅ แก้ไขจาก message เป็น messages
+  })
 
-      } catch (err: any) {
-        console.error("Fetch Error:", err)
-        setError(err.message || "ไม่สามารถโหลดข้อมูลได้")
-      } finally {
-        setLoadingData(false)
-      }
-    }
-    initPage()
-  }, [wardId, daysInMonth])
-
-  if (isAuthLoading || loadingData) {
-    return <div className="flex min-h-screen items-center justify-center bg-slate-50 animate-pulse">กำลังโหลดข้อมูล...</div>
-  }
-
-  if (error || !wardData) {
+  // Loading State
+  if (loadingData && shiftTemplates.length === 0) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 p-4">
-        <p className="text-red-500 font-bold mb-4">{error}</p>
-        <button onClick={() => router.push('/dashboard')} className="text-blue-500 underline">กลับหน้าหลัก</button>
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <p className="font-bold text-slate-400">กำลังโหลดข้อมูลวอร์ด...</p>
+        </div>
       </div>
     )
   }
 
-  const isHeadNurse = wardData.userRole === 'head_nurse'
+  const isHeadNurse = wardData?.userRole === 'head_nurse'
 
   return (
-    <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
+    <div className="p-6 space-y-6 bg-slate-50 min-h-screen relative overflow-x-hidden text-slate-900">
       <BackButton />
       
+      {/* ✅ Status UI: Toast & Sidebar */}
+      {isSaving && <ToastSaving />}
+
+      <ValidationErrorSidebar 
+        isOpen={isSidebarOpen} 
+        onClose={() => setIsSidebarOpen(false)} 
+        errors={validationErrors} // ส่งค่าที่ถูก set จาก handleSave ไปแสดงผล
+      />
+
+      {/* ✅ ส่วนหัววอร์ด และปุ่มบันทึก */}
       <WardDetail 
-        ward={wardData} month={monthName} year={year.toString()}
-        onMonthChange={setMonth} onYearChange={setYear}
-        currentMonthIdx={month} currentYear={year}
+        ward={wardData!} 
+        month={monthName} 
+        year={year.toString()}
+        onMonthChange={setMonth} 
+        onYearChange={setYear}
+        currentMonthIdx={month} 
+        currentYear={year}
+        onSave={() => handleSave(configData, refresh)} 
       />
 
       <div className="space-y-6">
+        {/* ✅ ส่วนตั้งค่าเวร (เช้า/บ่าย/ดึก) */}
         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-          {/* ✅ ส่ง templates ลงไปให้ Panel */}
-          <ShiftConfigPanel isEditable={isHeadNurse} templates={shiftTemplates} />
+          <ShiftConfigPanel 
+            isEditable={isHeadNurse}
+            templates={shiftTemplates}
+            onDataSync={(type, data) => setConfigData(prev => ({ ...prev, [type]: data }))}
+          />
         </div>
 
+        {/* ✅ ส่วนตารางจัดเวรรายวัน */}
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-slate-50">
-            <h3 className="font-bold text-slate-800 text-lg mb-3">จัดตารางเวรพยาบาล</h3>
+            <h3 className="font-bold text-slate-800 text-lg mb-3 tracking-tight">
+              จัดตารางเวรพยาบาล (เดือน{monthName})
+            </h3>
             <div className="flex flex-wrap gap-x-6 gap-y-2">
               <LegendItem color="bg-sky-100" label="เวรเช้า : ช" />
               <LegendItem color="bg-orange-100" label="เวรบ่าย : บ" />
@@ -105,23 +127,58 @@ export default function SchedulePage() {
 
           <ScheduleTable
             daysInMonth={daysInMonth}
-            schedule={schedule}
+            schedule={schedule || {}} 
             onCellClick={(nurseId, day) => {
-              if (isHeadNurse) console.log(`Edit ${nurseId} Day ${day + 1}`)
+              if (isHeadNurse) console.log(`กำลังแก้ไข: ${nurseId} วันที่ ${day + 1}`)
             }}
           />
         </div>
       </div>
-      <NurseSummaryPanel schedule={schedule} />
+
+      {/* ✅ สรุปจำนวนเวรของพยาบาลแต่ละคน */}
+      <NurseSummaryPanel schedule={schedule || {}} />
+
+      {/* ✅ Floating Button: แสดงเมื่อมีข้อผิดพลาดและ Sidebar ปิดอยู่ */}
+      {validationErrors.length > 0 && !isSidebarOpen && (
+        <FloatingErrorBtn 
+          count={validationErrors.length} 
+          onClick={() => setIsSidebarOpen(true)} 
+        />
+      )}
     </div>
+  )
+}
+
+// --- Internal UI Components (คงเดิม) ---
+
+function ToastSaving() {
+  return (
+    <div className="fixed top-10 right-10 z-[9999] bg-white border-2 border-blue-500 px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4">
+      <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      <span className="font-black text-blue-600 text-sm">กำลังบันทึกข้อมูล...</span>
+    </div>
+  )
+}
+
+function FloatingErrorBtn({ count, onClick }: { count: number; onClick: () => void }) {
+  return (
+    <button 
+      onClick={onClick} 
+      className="fixed bottom-10 right-10 bg-red-500 text-white p-4 rounded-full shadow-md z-50 hover:scale-110 transition-transform active:scale-95"
+    >
+      <div className="absolute -top-1 -right-1 bg-white text-red-500 text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-red-500">
+        {count}
+      </div>
+      <AlertCircle size={24} />
+    </button>
   )
 }
 
 function LegendItem({ color, label }: { color: string; label: string }) {
   return (
     <div className="flex items-center gap-2">
-      <div className={`w-3.5 h-3.5 rounded border ${color} border-slate-200`} />
-      <span className="text-xs font-medium text-slate-500">{label}</span>
+      <div className={`w-3.5 h-3.5 rounded border ${color} border-slate-200 shadow-sm`} />
+      <span className="text-[11px] font-bold text-slate-500">{label}</span>
     </div>
   )
 }
