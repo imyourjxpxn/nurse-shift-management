@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { createShiftTemplate } from '@/features/ward/api/createShiftTemplate'
-import { createShiftRequirement } from '@/features/ward/api/createShiftRequirement' // 🚩 ใช้ API ตัวใหม่ที่ส่งราย ID
+import { createShiftRequirement } from '@/features/ward/api/createShiftRequirement'
 import { ShiftSyncData } from '@/features/ward/types'
 
 interface SaveConfigProps {
@@ -14,8 +14,6 @@ export function useSaveConfig({ wardId, isFormValid, validationMsg }: SaveConfig
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
-  // features/ward/hooks/useSaveConfig.ts
-
   const handleSave = async (
     configData: Record<string, ShiftSyncData>,
     onSuccess: () => void
@@ -28,10 +26,14 @@ export function useSaveConfig({ wardId, isFormValid, validationMsg }: SaveConfig
 
     try {
       setIsSaving(true);
+      const requests: Promise<any>[] = [];
 
-      // 🚩 1. แยกกลุ่มข้อมูล: กลุ่มที่จะ Create ใหม่ vs กลุ่มที่มี ID แล้วจะ Update Requirement
-      const toCreateTemplate = Object.entries(configData)
-        .filter(([_, data]) => !data.shiftTemplateId) // ไม่มี ID = ของใหม่
+      // --- 🚩 แยก Logic ตาม API ของเพื่อน ---
+
+      // 1. กลุ่มที่ต้อง "สร้างใหม่ทั้งหมด" (กรณีวอร์ดใหม่ ยังไม่มี ID ของเวรเลย)
+      // เพื่อนบอกว่าส่งเป็น Array ไปที่ /api/shift-template/create
+      const templatesToCreate = Object.entries(configData)
+        .filter(([_, data]) => !data.shiftTemplateId) // ถ้าไม่มี ID แสดงว่าต้องสร้างครั้งแรก
         .map(([type, data]) => ({
           wardId: wardId,
           type: type,
@@ -40,33 +42,34 @@ export function useSaveConfig({ wardId, isFormValid, validationMsg }: SaveConfig
           requiredPeople: Number(data.requiredPeople)
         }));
 
-      const toUpdateRequirement = Object.entries(configData)
-        .filter(([_, data]) => data.shiftTemplateId); // มี ID แล้ว = แก้จำนวนคน
-
-      // 🚩 2. จัดการยิง API
-      const requests: Promise<any>[] = [];
-
-      // ถ้ามีของใหม่ -> ยิง createShiftTemplate (ทีเดียวเข่งใหญ่)
-      if (toCreateTemplate.length > 0) {
-        console.log("🆕 Creating new templates:", toCreateTemplate);
-        requests.push(createShiftTemplate(toCreateTemplate));
+      if (templatesToCreate.length > 0) {
+        console.log("🆕 ยิงเส้น Create Template (ครั้งแรก):", templatesToCreate);
+        requests.push(createShiftTemplate(templatesToCreate));
       }
 
-      // ถ้ามีของเดิม -> วนลูปยิง createShiftRequirement (แยกราย ID)
-      if (toUpdateRequirement.length > 0) {
-        console.log("update existing requirements");
-        toUpdateRequirement.forEach(([_, data]) => {
-          requests.push(createShiftRequirement(data.shiftTemplateId!, data.requiredPeople));
+      // 2. กลุ่มที่ "มีเวรอยู่แล้ว" แต่ต้องการแก้ไขจำนวนคน (Update Requirement)
+      // เพื่อนบอกว่าให้ยิงแยกรายตัวไปที่ /api/shift-requirement/create/:shiftTemplateId
+      const requirementsToUpdate = Object.entries(configData)
+        .filter(([_, data]) => data.shiftTemplateId); // มี ID แล้ว แสดงว่าเป็นการแก้จำนวนคน
+
+      if (requirementsToUpdate.length > 0) {
+        console.log("✏️ ยิงเส้น Create Requirement (อัปเดตจำนวนคน)");
+        requirementsToUpdate.forEach(([_, data]) => {
+          // ยิงแยกทีละตัวตาม Requirement ของเพื่อน
+          requests.push(createShiftRequirement(
+            data.shiftTemplateId!, 
+            Number(data.requiredPeople)
+          ));
         });
       }
 
-      // 🚩 3. ยิงทุกอย่างพร้อมกัน
+      // --- 🚩 ยิง API ทั้งหมดพร้อมกัน ---
       await Promise.all(requests);
 
-      // 4. สำเร็จ
+      // สำเร็จ
       setValidationErrors([]);
       setIsSidebarOpen(false);
-      onSuccess(); // Refresh ข้อมูลเพื่อให้ได้ ID ใหม่มาเก็บไว้ในเครื่อง
+      onSuccess(); // Refresh ข้อมูลเพื่อดึงค่าล่าสุดมาโชว์
     
     } catch (err: any) {
       console.error("Save Error:", err);
