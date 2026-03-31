@@ -13,6 +13,8 @@ export function useSaveConfig({ wardId, isFormValid, validationMsg }: SaveConfig
   const [isSaving, setIsSaving] = useState(false)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  // 🚩 เพิ่ม State สำหรับ Success Toast
+  const [showSuccessToast, setShowSuccessToast] = useState(false)
 
   const handleSave = async (
     configData: Record<string, ShiftSyncData>,
@@ -26,14 +28,12 @@ export function useSaveConfig({ wardId, isFormValid, validationMsg }: SaveConfig
 
     try {
       setIsSaving(true);
+      setShowSuccessToast(false); // ปิดอันเก่าก่อนถ้ามี
       const requests: Promise<any>[] = [];
 
-      // --- 🚩 แยก Logic ตาม API ของเพื่อน ---
-
-      // 1. กลุ่มที่ต้อง "สร้างใหม่ทั้งหมด" (กรณีวอร์ดใหม่ ยังไม่มี ID ของเวรเลย)
-      // เพื่อนบอกว่าส่งเป็น Array ไปที่ /api/shift-template/create
+      // 1. กลุ่มสร้างใหม่
       const templatesToCreate = Object.entries(configData)
-        .filter(([_, data]) => !data.shiftTemplateId) // ถ้าไม่มี ID แสดงว่าต้องสร้างครั้งแรก
+        .filter(([_, data]) => !data.shiftTemplateId)
         .map(([type, data]) => ({
           wardId: wardId,
           type: type,
@@ -43,19 +43,15 @@ export function useSaveConfig({ wardId, isFormValid, validationMsg }: SaveConfig
         }));
 
       if (templatesToCreate.length > 0) {
-        console.log("🆕 ยิงเส้น Create Template (ครั้งแรก):", templatesToCreate);
         requests.push(createShiftTemplate(templatesToCreate));
       }
 
-      // 2. กลุ่มที่ "มีเวรอยู่แล้ว" แต่ต้องการแก้ไขจำนวนคน (Update Requirement)
-      // เพื่อนบอกว่าให้ยิงแยกรายตัวไปที่ /api/shift-requirement/create/:shiftTemplateId
+      // 2. กลุ่มอัปเดตจำนวนคน
       const requirementsToUpdate = Object.entries(configData)
-        .filter(([_, data]) => data.shiftTemplateId); // มี ID แล้ว แสดงว่าเป็นการแก้จำนวนคน
+        .filter(([_, data]) => data.shiftTemplateId);
 
       if (requirementsToUpdate.length > 0) {
-        console.log("✏️ ยิงเส้น Create Requirement (อัปเดตจำนวนคน)");
         requirementsToUpdate.forEach(([_, data]) => {
-          // ยิงแยกทีละตัวตาม Requirement ของเพื่อน
           requests.push(createShiftRequirement(
             data.shiftTemplateId!, 
             Number(data.requiredPeople)
@@ -63,18 +59,22 @@ export function useSaveConfig({ wardId, isFormValid, validationMsg }: SaveConfig
         });
       }
 
-      // --- 🚩 ยิง API ทั้งหมดพร้อมกัน ---
       await Promise.all(requests);
 
-      // สำเร็จ
+      // ✅ บันทึกสำเร็จ
       setValidationErrors([]);
       setIsSidebarOpen(false);
-      onSuccess(); // Refresh ข้อมูลเพื่อดึงค่าล่าสุดมาโชว์
+      setShowSuccessToast(true); // 🚩 แสดง Toast สำเร็จ
+      onSuccess(); 
+
+      // 🚩 ตั้งเวลาให้ Toast หายไปเองใน 3 วินาที
+      setTimeout(() => setShowSuccessToast(false), 3000);
     
     } catch (err: any) {
       console.error("Save Error:", err);
       setValidationErrors([err.message || "เกิดข้อผิดพลาดในการบันทึกข้อมูล"]);
       setIsSidebarOpen(true);
+      setShowSuccessToast(false);
     } finally {
       setIsSaving(false);
     }
@@ -82,6 +82,8 @@ export function useSaveConfig({ wardId, isFormValid, validationMsg }: SaveConfig
 
   return {
     isSaving,
+    showSuccessToast, // 🚩 ส่งออกไปด้วย
+    setShowSuccessToast,
     validationErrors,
     setValidationErrors,
     isSidebarOpen,
