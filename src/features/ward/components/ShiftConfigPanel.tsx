@@ -31,6 +31,15 @@ export function ShiftConfigPanel({ isEditable, templates, onDataSync }: ShiftCon
     };
   }
 
+  //  ฟังก์ชันช่วย Sync ที่จะบังคับให้ส่ง ID กลับไปด้วยเสมอ
+  const handleInternalSync = (type: string, incomingData: ShiftSyncData, existingTemplate?: ShiftTemplate) => {
+    onDataSync(type, {
+      ...incomingData,
+      // ถ้าใน DB (templates) มี ID ต้องแนบกลับไปใน configData ด้วย!
+      shiftTemplateId: existingTemplate?.shiftTemplateId 
+    });
+  };
+
   const morningInfo = getShiftInfo('morning');
   const afternoonInfo = getShiftInfo('afternoon');
   const nightInfo = getShiftInfo('night');
@@ -48,7 +57,7 @@ export function ShiftConfigPanel({ isEditable, templates, onDataSync }: ShiftCon
         isTimeLocked={morningInfo.isTimeLocked}
         defaultStart="--:--" 
         defaultEnd="--:--" 
-        onSync={(data) => onDataSync('morning', data)}
+        onSync={(data) => handleInternalSync('morning', data, morningInfo.template)}
       />
 
       {/* --- เวรบ่าย --- */}
@@ -61,7 +70,7 @@ export function ShiftConfigPanel({ isEditable, templates, onDataSync }: ShiftCon
         isTimeLocked={afternoonInfo.isTimeLocked}
         defaultStart="--:--" 
         defaultEnd="--:--" 
-        onSync={(data) => onDataSync('afternoon', data)}
+        onSync={(data) => handleInternalSync('afternoon', data, afternoonInfo.template)}
       />
 
       {/* --- เวรดึก --- */}
@@ -74,7 +83,7 @@ export function ShiftConfigPanel({ isEditable, templates, onDataSync }: ShiftCon
         isTimeLocked={nightInfo.isTimeLocked}
         defaultStart="--:--" 
         defaultEnd="--:--" 
-        onSync={(data) => onDataSync('night', data)}
+        onSync={(data) => handleInternalSync('night', data, nightInfo.template)}
       />
     </div>
   )

@@ -8,12 +8,12 @@ interface ShiftCardProps {
   title: string
   bg: string
   border: string
-  isEditable: boolean      // คุมสิทธิ์ภาพรวม (เช่น เป็น Head Nurse หรือไม่)
-  data: any                // ข้อมูล Template จาก API
+  isEditable: boolean
+  data: any
   defaultStart: string
   defaultEnd: string
   onSync: (data: ShiftSyncData) => void
-  isTimeLocked?: boolean   // 🔒 ล็อกเฉพาะเวลา (ถ้ามี Template ID แล้ว)
+  isTimeLocked?: boolean
 }
 
 export function ShiftCard({ 
@@ -27,10 +27,10 @@ export function ShiftCard({
   const [endM, setEndM] = useState('--')
   const [error, setError] = useState('')
 
-  // 1. ดึงข้อมูลจาก Database มาใส่ตอนโหลดหน้า (Initial Load)
+  // 1. Initial Load: ดึงข้อมูลจาก DB
   useEffect(() => {
     const parse = (t: string) => {
-      if (!t || t === "--:--") return { h: '--', m: '--' };
+      if (!t || t === "--:--" || t === "") return { h: '--', m: '--' };
       const parts = t.split(':')
       return { 
         h: parts[0]?.padStart(2, '0') || '--', 
@@ -38,7 +38,6 @@ export function ShiftCard({
       }
     }
     
-    // ลำดับความสำคัญ: ข้อมูลจาก DB > ค่า Default ที่ส่งมา
     const s = parse(data?.startTime || defaultStart)
     const e = parse(data?.endTime || defaultEnd)
     
@@ -46,12 +45,15 @@ export function ShiftCard({
     setStartH(s.h); setStartM(s.m); setEndH(e.h); setEndM(e.m)
   }, [data, defaultStart, defaultEnd])
 
-  // 2. คำนวณ Error และส่งข้อมูลกลับไปหาหน้าหลัก (Sync State)
+  // 2. Sync State & Validation
   useEffect(() => {
-    // ถ้ายังกรอกไม่ครบ ไม่ต้องเช็ค Overlap แต่ส่ง hasError ไปกัน Save
-    if (startH === '--' || endH === '--' || startM === '--' || endM === '--') {
+    const isMissingTime = startH === '--' || endH === '--' || startM === '--' || endM === '--';
+    const isMissingPeople = !required || parseInt(required) <= 0;
+
+    if (isMissingTime) {
       setError('')
       onSync({
+        shiftTemplateId: data?.shiftTemplateId,
         startTime: "--:--",
         endTime: "--:--",
         requiredPeople: parseInt(required) || 0,
@@ -62,16 +64,14 @@ export function ShiftCard({
 
     const h1 = parseInt(startH); const m1 = parseInt(startM)
     const h2 = parseInt(endH); const m2 = parseInt(endM)
-
     const startTotal = h1 * 60 + m1
     let endTotal = h2 * 60 + m2
 
-    if (endTotal <= startTotal) endTotal += 24 * 60 // กรณีข้ามคืน
+    if (endTotal <= startTotal) endTotal += 24 * 60 
     
     const diff = endTotal - startTotal
-    const isOverTime = diff > 480 // เกิน 8 ชม.
+    const isOverTime = diff > 480 
     const isSameTime = startTotal === (h2 * 60 + m2)
-    const isMissingPeople = !required || parseInt(required) <= 0
 
     let currentError = ''
     if (isSameTime) currentError = 'เวลาเริ่มและจบห้ามเป็นเวลาเดียวกัน'
@@ -79,7 +79,6 @@ export function ShiftCard({
     
     setError(currentError)
 
-    // ส่งข้อมูลกลับไปที่ SchedulePage ผ่าน onDataSync
     onSync({
       shiftTemplateId: data?.shiftTemplateId,
       startTime: `${startH}:${startM}`,
@@ -87,24 +86,29 @@ export function ShiftCard({
       requiredPeople: parseInt(required) || 0,
       hasError: !!currentError || isMissingPeople
     })
-  }, [startH, startM, endH, endM, required])
+  }, [startH, startM, endH, endM, required, data?.shiftTemplateId])
 
   return (
     <div className={`relative ${bg} ${border} border-2 rounded-3xl p-6 shadow-sm transition-all 
-      ${error ? 'border-red-300 ' : 'hover:shadow-md'}`}>
+      ${error ? 'border-red-300 ring-2 ring-red-50' : 'hover:shadow-md'}`}>
 
-      <h3 className="text-base font-black text-slate-800 mb-4">{title}</h3>
+      <h3 className="text-base font-black text-slate-800 mb-4 uppercase">
+        {title}
+      </h3>
       
       <div className="space-y-4">
-        {/* ส่วนที่ 1: จำนวนพยาบาล (แก้ได้ตลอดถ้าเป็น Head Nurse) */}
+        {/* จำนวนพยาบาล */}
         <div>
-          <label className="block text-[10px] font-bold mb-1 text-slate-400 uppercase leading-tight">
+          <label className={`block text-[10px] font-bold mb-1 uppercase leading-tight 
+            ${!isEditable ? 'text-slate-400' : 'text-slate-500'}`}>
             จำนวนพยาบาลที่ต้องการ
           </label>
           <input
             type="text"
-            className={`w-full bg-white border-2 border-slate-200 rounded-2xl px-4 py-2 text-lg font-bold outline-none transition-all
-              ${!isEditable ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : 'focus:border-blue-400 hover:border-slate-300'}`}
+            className={`w-full border-2 rounded-2xl px-4 py-2 text-lg font-bold outline-none transition-all
+              ${!isEditable 
+                ? 'bg-slate-100/50 border-slate-100 text-slate-400 cursor-not-allowed shadow-none' 
+                : 'bg-white border-slate-200 focus:border-blue-400 hover:border-slate-300 text-slate-700 shadow-sm'}`}
             value={required} 
             onChange={e => setRequired(e.target.value.replace(/\D/g, ''))}
             disabled={!isEditable} 
@@ -112,29 +116,38 @@ export function ShiftCard({
           />
         </div>
 
-        {/* ส่วนที่ 2: เวลาเวร (ล็อกถ้าเคยบันทึกแล้ว) */}
-        <div className="flex gap-4">
-          <TimeInput 
-            label="เริ่ม" 
-            h={startH} m={startM} setH={setStartH} setM={setStartM} 
-            disabled={!isEditable || isTimeLocked} // ล็อกถ้าไม่ใช่ Head Nurse หรือถ้ามี Template แล้ว
-            hasError={!!error} 
-          />
-          <TimeInput 
-            label="ถึง" 
-            h={endH} m={endM} setH={setEndH} setM={setEndM} 
-            disabled={!isEditable || isTimeLocked} 
-            hasError={!!error} 
-          />
+        {/* เวลาเวร */}
+        <div>
+          <div className="flex gap-4">
+            <TimeInput 
+              label="เริ่ม" 
+              h={startH} m={startM} setH={setStartH} setM={setStartM} 
+              disabled={!isEditable || isTimeLocked} 
+              hasError={!!error} 
+            />
+            <TimeInput 
+              label="ถึง" 
+              h={endH} m={endM} setH={setEndH} setM={setEndM} 
+              disabled={!isEditable || isTimeLocked} 
+              hasError={!!error} 
+            />
+          </div>
+
+          {/* 🚩 ข้อความแจ้งเตือนใต้ช่องเวลา (เฉพาะ Head Nurse ที่โดนล็อคเวลา) */}
+          {isEditable && isTimeLocked && !error && (
+            <p className="mt-2 text-[10px] text-slate-400">
+              * แก้ไขได้เฉพาะจำนวนคน
+            </p>
+          )}
         </div>
 
-        {/* Error Message Display */}
+        {/* ส่วนแสดง Error (ถ้ามี) */}
         <div className="min-h-[16px]">
-          {error ? (
-            <p className="text-[11px] font-bold text-red-500">{error}</p>
-          ) : isTimeLocked && isEditable ? (
-            <p className="text-[10px] font-medium text-slate-400 italic">* ไม่สามารถแก้ไขเวลาได้</p>
-          ) : null}
+          {error && (
+            <p className="text-[11px] font-bold text-red-500 animate-pulse">
+              {error}
+            </p>
+          )}
         </div>
       </div>
     </div>

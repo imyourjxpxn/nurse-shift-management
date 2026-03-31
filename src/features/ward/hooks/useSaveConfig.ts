@@ -13,7 +13,6 @@ export function useSaveConfig({ wardId, isFormValid, validationMsg }: SaveConfig
   const [isSaving, setIsSaving] = useState(false)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-  // 🚩 เพิ่ม State สำหรับ Success Toast
   const [showSuccessToast, setShowSuccessToast] = useState(false)
 
   const handleSave = async (
@@ -28,11 +27,14 @@ export function useSaveConfig({ wardId, isFormValid, validationMsg }: SaveConfig
 
     try {
       setIsSaving(true);
-      setShowSuccessToast(false); // ปิดอันเก่าก่อนถ้ามี
+      setValidationErrors([]);
       const requests: Promise<any>[] = [];
 
-      // 1. กลุ่มสร้างใหม่
-      const templatesToCreate = Object.entries(configData)
+      // กรองเฉพาะรายการที่ไม่มี Error เท่านั้น
+      const validEntries = Object.entries(configData).filter(([_, data]) => !data.hasError);
+
+      // 1. สร้าง Template ใหม่ (ถ้าไม่มี ID)
+      const templatesToCreate = validEntries
         .filter(([_, data]) => !data.shiftTemplateId)
         .map(([type, data]) => ({
           wardId: wardId,
@@ -46,35 +48,33 @@ export function useSaveConfig({ wardId, isFormValid, validationMsg }: SaveConfig
         requests.push(createShiftTemplate(templatesToCreate));
       }
 
-      // 2. กลุ่มอัปเดตจำนวนคน
-      const requirementsToUpdate = Object.entries(configData)
+      // 2. อัปเดต Requirement (ถ้ามี ID แล้ว)
+      const requirementsToUpdate = validEntries
         .filter(([_, data]) => data.shiftTemplateId);
 
-      if (requirementsToUpdate.length > 0) {
-        requirementsToUpdate.forEach(([_, data]) => {
-          requests.push(createShiftRequirement(
-            data.shiftTemplateId!, 
-            Number(data.requiredPeople)
-          ));
-        });
+      requirementsToUpdate.forEach(([_, data]) => {
+        requests.push(createShiftRequirement(
+          data.shiftTemplateId!, 
+          Number(data.requiredPeople)
+        ));
+      });
+
+      if (requests.length === 0) {
+        setIsSaving(false);
+        return;
       }
 
       await Promise.all(requests);
 
-      // ✅ บันทึกสำเร็จ
-      setValidationErrors([]);
+      // สำเร็จ
+      setShowSuccessToast(true);
       setIsSidebarOpen(false);
-      setShowSuccessToast(true); // 🚩 แสดง Toast สำเร็จ
-      onSuccess(); 
-
-      // 🚩 ตั้งเวลาให้ Toast หายไปเองใน 3 วินาที
+      onSuccess(); // สำคัญ: ต้อง Re-fetch ข้อมูลใหม่ในหน้านี้
       setTimeout(() => setShowSuccessToast(false), 3000);
     
     } catch (err: any) {
-      console.error("Save Error:", err);
       setValidationErrors([err.message || "เกิดข้อผิดพลาดในการบันทึกข้อมูล"]);
       setIsSidebarOpen(true);
-      setShowSuccessToast(false);
     } finally {
       setIsSaving(false);
     }
@@ -82,10 +82,8 @@ export function useSaveConfig({ wardId, isFormValid, validationMsg }: SaveConfig
 
   return {
     isSaving,
-    showSuccessToast, // 🚩 ส่งออกไปด้วย
-    setShowSuccessToast,
+    showSuccessToast,
     validationErrors,
-    setValidationErrors,
     isSidebarOpen,
     setIsSidebarOpen,
     handleSave
