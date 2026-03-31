@@ -48,11 +48,16 @@ export function useSaveConfig({ wardId, isFormValid, validationMsg }: SaveConfig
         requests.push(createShiftTemplate(templatesToCreate));
       }
 
-      // 2. อัปเดต Requirement (ถ้ามี ID แล้ว)
-      const requirementsToUpdate = validEntries
-        .filter(([_, data]) => data.shiftTemplateId);
+      // 2. อัปเดต Requirement (เฉพาะตัวที่มี ID และค่าเปลี่ยนจริงๆ)
+      const requirementsToUpdate = validEntries.filter(([_, data]) => {
+        const isExisting = !!data.shiftTemplateId;
+        const isChanged = Number(data.requiredPeople) !== Number(data.originalRequiredPeople);
+        
+        return isExisting && isChanged;
+      });
 
       requirementsToUpdate.forEach(([_, data]) => {
+        // ยิงเฉพาะรายการของเวรที่มีการเปลี่ยน Requirement 
         requests.push(createShiftRequirement(
           data.shiftTemplateId!, 
           Number(data.requiredPeople)

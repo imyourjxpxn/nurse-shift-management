@@ -58,6 +58,7 @@ export interface ShiftSyncData {
   startTime: string;
   endTime: string;
   requiredPeople: number;
+  originalRequiredPeople?: number; // ✅ เพิ่มเพื่อใช้เทียบค่าเดิมจาก DB
   hasError: boolean;
 }
 

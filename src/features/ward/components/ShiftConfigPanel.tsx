@@ -35,8 +35,12 @@ export function ShiftConfigPanel({ isEditable, templates, onDataSync }: ShiftCon
   const handleInternalSync = (type: string, incomingData: ShiftSyncData, existingTemplate?: ShiftTemplate) => {
     onDataSync(type, {
       ...incomingData,
-      // ถ้าใน DB (templates) มี ID ต้องแนบกลับไปใน configData ด้วย!
-      shiftTemplateId: existingTemplate?.shiftTemplateId 
+      // 1. แนบ ID กลับไปเหมือนเดิม
+    shiftTemplateId: existingTemplate?.shiftTemplateId,
+    
+    // 2. ✅ เพิ่มการส่งค่าดั้งเดิมจาก DB ไปด้วย
+    // เพื่อให้ useSaveConfig สามารถใช้เทียบได้ว่า "ค่าเปลี่ยนไปจากเดิมไหม"
+    originalRequiredPeople: existingTemplate?.requiredPeople
     });
   };
 
