@@ -4,6 +4,14 @@ export interface Ward {
   member: number
   createdBy: string
 }
+
+export interface EnterWardResponse {
+  wardId: string;
+  wardName: string;
+  hospitalId: string;
+  hospitalName: string;
+}
+
 export interface WardDetail {
   wardId: string
   wardName: string
