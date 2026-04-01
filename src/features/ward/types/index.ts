@@ -6,11 +6,10 @@ export interface Ward {
 }
 
 export interface EnterWardResponse {
-  wardId: string;
-  wardName: string;
-  hospitalId: string;
-  hospitalName: string;
+  wardId: string
+  isMember: boolean
 }
+
 
 export interface WardDetail {
   wardId: string
