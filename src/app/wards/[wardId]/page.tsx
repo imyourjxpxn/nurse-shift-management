@@ -34,19 +34,19 @@ export default function SchedulePage() {
   // State สำหรับเก็บข้อมูลที่ Sync มาจาก ShiftCard
   const [configData, setConfigData] = useState<Record<string, any>>({})
 
-  // 1. 🚩 จัดการข้อมูลหลัก
+  // 1. 🚩 จัดการข้อมูลหลัก (ปรับมารับ scheduleRows ตาม Hook ใหม่)
   const { 
     wardData, 
     shiftTemplates, 
     loadingData, 
-    schedule, 
+    scheduleRows, // ✅ ใช้ตัวนี้แทน schedule และ nurseSummaries
     refresh 
   } = useScheduleData(wardId, daysInMonth, month, year)
   
   // 2. 🚩 จัดการ Validation
   const { isValid, messages } = useShiftValidation(configData)
 
-  // 3. 🚩 จัดการการบันทึก (รับค่า showSuccessToast เพิ่มเข้ามา)
+  // 3. 🚩 จัดการการบันทึก
   const { 
     isSaving, 
     showSuccessToast,
@@ -61,7 +61,7 @@ export default function SchedulePage() {
   })
 
   // Loading State
-  if (loadingData && shiftTemplates.length === 0) {
+  if (loadingData && Object.keys(scheduleRows).length === 0) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-4">
@@ -126,9 +126,10 @@ export default function SchedulePage() {
             </div>
           </div>
 
+          {/* ✅ ปรับการส่ง Props ให้ตรงกับ Interface ใหม่ */}
           <ScheduleTable
             daysInMonth={daysInMonth}
-            schedule={schedule || {}} 
+            scheduleRows={scheduleRows} 
             onCellClick={(nurseId, day) => {
               if (isHeadNurse) console.log(`กำลังแก้ไข: ${nurseId} วันที่ ${day + 1}`)
             }}
@@ -136,10 +137,10 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      {/* ✅ สรุปจำนวนเวรของพยาบาลแต่ละคน */}
-      <NurseSummaryPanel schedule={schedule || {}} />
+      {/* ✅ ปรับการส่ง Props ให้รับ scheduleRows ก้อนเดียวจบ */}
+      <NurseSummaryPanel scheduleRows={scheduleRows} />
 
-      {/* ✅ Floating Button: ปรับปรุงให้ไม่เด้งและไม่เรืองแสง */}
+      {/* ✅ Floating Button */}
       {validationErrors.length > 0 && !isSidebarOpen && (
         <FloatingErrorBtn 
           count={validationErrors.length} 
@@ -150,7 +151,7 @@ export default function SchedulePage() {
   )
 }
 
-// --- Internal UI Components ---
+// --- Internal UI Components (ไม่มีการเปลี่ยนแปลง) ---
 
 function ToastSaving() {
   return (

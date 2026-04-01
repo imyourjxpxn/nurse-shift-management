@@ -1,72 +1,117 @@
 import { useState, useEffect } from 'react'
 import { getWardById } from '@/features/ward/api/getWardById' 
 import { getShiftTemplates } from '@/features/ward/api/getAllShiftTemplates'
-import { WardDetail, ShiftTemplate } from '@/features/ward/types'
+import { getShiftAssignmentsSummary } from '@/features/ward/api/getShiftAssignments'
+import { 
+  WardDetail, 
+  ShiftTemplate, 
+  NurseSummary, 
+  UserShiftAssignment, 
+  NurseScheduleRow,
+  AssignmentType 
+} from '@/features/ward/types'
 
 export function useScheduleData(wardId: string, daysInMonth: number, month: number, year: number) {
   const [wardData, setWardData] = useState<WardDetail | null>(null)
   const [shiftTemplates, setShiftTemplates] = useState<ShiftTemplate[]>([])
   const [loadingData, setLoadingData] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [schedule, setSchedule] = useState<Record<string, string[][]>>({})
+  
+  // เก็บข้อมูลตารางเวรโดยใช้ userId เป็น Key
+  const [scheduleRows, setScheduleRows] = useState<Record<string, NurseScheduleRow>>({})
 
   const fetchData = async () => {
     if (!wardId) return
     try {
       setLoadingData(true)
+      setError(null)
       
-      /**
-       * 🚩 แก้ไขจุดนี้: ส่ง year และ month ไปให้ API ตาม Schema ใหม่
-       * (หมายเหตุ: ตัวแปร month ที่รับมาเป็น 0-11 จาก useCalendar 
-       * จะถูกไปบวก 1 ในฟังก์ชัน getShiftTemplates เองตามที่เราแก้ไว้ก่อนหน้า)
-       */
-      const [ward, templates] = await Promise.all([
+      const [ward, templates, assignmentsData] = await Promise.all([
         getWardById(wardId),
-        getShiftTemplates(wardId, year, month) 
+        getShiftTemplates(wardId, year, month),
+        getShiftAssignmentsSummary(wardId, year, month)
       ])
+
+      // 🚩 Log ข้อมูลห้ามลบ (สำคัญมากสำหรับการ Debug)
+      console.log("📦 Ward Data:", ward);
+      console.log("📦 Assignments Data:", assignmentsData);
       
       setWardData(ward)
-      console.log("Templates from Backend:", templates);
       setShiftTemplates(templates || [])
-      
-      /**
-       * 🚩 Mock ข้อมูล (คงเดิมตามคำขอ): 3 Slots ต่อ 1 วัน
-       * Slot [0] = เช้า, [1] = บ่าย, [2] = ดึก
-       */
-      const mockNurses = [
-        "นางสาวปรียา วรกุล",
-        "นางสาวนพพร สุขใจ",
-        "นางสาววิมลรัตน์ ใจดี",
-        "นางสาวสมศรี มีสุข"
-      ];
 
-      const newSchedule: Record<string, string[][]> = {};
-      
-      mockNurses.forEach(nurse => {
-        // ค่าเริ่มต้นให้เป็นเวรปกติ 3 slots [เช้า, บ่าย, ดึก]
-        newSchedule[nurse] = Array.from({ length: daysInMonth }, () => ["", "", ""]);
+      const tempRows: Record<string, NurseScheduleRow> = {};
+
+      // 🚩 ดึงรายชื่อพยาบาลและข้อมูลเวรจาก assignmentsData
+      const assignments: UserShiftAssignment[] = Array.isArray(assignmentsData) 
+        ? assignmentsData 
+        : (assignmentsData as any)?.data || [];
+
+      assignments.forEach((userRecord) => {
+        // ✨ Log ข้อมูลรายคนห้ามลบ
+        console.log(`👤 User: ${userRecord.name} (ID: ${userRecord.userId})`, userRecord.assignments);
+
+        const isHead = userRecord.userRole === 'head_nurse';
+        
+        // 1. สร้างโครงสร้างแถว (NurseScheduleRow) ตาม Types ใหม่
+        tempRows[userRecord.userId] = {
+          displayName: isHead ? `${userRecord.name} (Head)` : userRecord.name,
+          dailyShifts: Array.from({ length: daysInMonth }, () => ["", "", ""]),
+          summary: { 
+            morning: 0, 
+            afternoon: 0, 
+            night: 0, 
+            emergency: 0, 
+            off: 0, 
+            leave: 0, 
+            totalShifts: 0 
+          }
+        };
+
+        // 2. เติมข้อมูลเวรลงใน dailyShifts และคำนวณ summary
+        if (userRecord.assignments && userRecord.assignments.length > 0) {
+          userRecord.assignments.forEach((asn) => {
+            const dateParts = asn.date.split('-');
+            // ดึงวันที่จาก "YYYY-MM-DD" มาลบ 1 เพื่อให้ได้ Index (0-30)
+            const dayIndex = parseInt(dateParts[2], 10) - 1;
+
+            if (dayIndex >= 0 && dayIndex < daysInMonth) {
+              const type = asn.assignmentType;
+              const row = tempRows[userRecord.userId];
+              const summary = row.summary;
+
+              if (type === AssignmentType.SHIFT) {
+                const sType = asn.shiftTemplateType;
+                summary.totalShifts++;
+                if (sType === 'morning') { row.dailyShifts[dayIndex][0] = "ช"; summary.morning++; }
+                else if (sType === 'afternoon') { row.dailyShifts[dayIndex][1] = "บ"; summary.afternoon++; }
+                else if (sType === 'night') { row.dailyShifts[dayIndex][2] = "ด"; summary.night++; }
+              } else if (type !== AssignmentType.NONE) {
+                // จัดการสถานะพิเศษ (OFF, LEAVE, EMERGENCY)
+                const specialMap: Record<string, string> = { 
+                  [AssignmentType.OFF]: 'o', 
+                  [AssignmentType.LEAVE]: 'ล', 
+                  [AssignmentType.EMERGENCY]: 'E' 
+                };
+                
+                if (type === AssignmentType.OFF) summary.off++;
+                if (type === AssignmentType.LEAVE) summary.leave++;
+                if (type === AssignmentType.EMERGENCY) { 
+                  summary.emergency++; 
+                  summary.totalShifts++; 
+                }
+                
+                // แทนที่ทั้งช่องด้วยตัวย่อสถานะพิเศษ
+                row.dailyShifts[dayIndex] = [specialMap[type] || type.toUpperCase()];
+              }
+            }
+          });
+        }
       });
 
-      // 🚩 วิธี Mock แบบใหม่ให้ UI แสดงผลถูกต้อง:
+      setScheduleRows(tempRows);
 
-      // 1. กรณีเวรปกติ (ช, บ, ด) -> ส่ง 3 slots
-      if (newSchedule["นางสาวปรียา วรกุล"]) {
-        newSchedule["นางสาวปรียา วรกุล"][0] = ["ช", "บ", ""]; // วันที่ 1 ขึ้นเช้า+บ่าย
-        newSchedule["นางสาวปรียา วรกุล"][1] = ["", "", "ด"]; // วันที่ 2 ขึ้นดึกช่องเดียว (แต่ยังอยู่ใน 3 slots)
-      }
-
-      // 2. กรณีเวรพิเศษ (E, ล, o, off) -> ส่ง slot เดียวก้อนเดียว
-      if (newSchedule["นางสาวนพพร สุขใจ"]) {
-        newSchedule["นางสาวนพพร สุขใจ"][0] = ["o"]; // วันที่ 1 วันหยุด (Off) -> จะขึ้นตัว 'o' ใหญ่กลางช่อง
-        newSchedule["นางสาวนพพร สุขใจ"][1] = ["ล"]; // วันที่ 2 ลา (Leave)
-      }
-
-      if (newSchedule["นางสาววิมลรัตน์ ใจดี"]) {
-        newSchedule["นางสาววิมลรัตน์ ใจดี"][2] = ["E"]; // วันที่ 3 ฉุกเฉิน (Emergency) -> จะขึ้นตัว 'E' ใหญ่กลางช่อง
-      }
-
-      setSchedule(newSchedule);
     } catch (err: any) {
+      console.error("Fetch Schedule Error:", err);
       setError(err.message || "ไม่สามารถโหลดข้อมูลได้")
     } finally {
       setLoadingData(false)
@@ -79,12 +124,10 @@ export function useScheduleData(wardId: string, daysInMonth: number, month: numb
 
   return { 
     wardData, 
-    shiftTemplates, 
-    setShiftTemplates, 
+    shiftTemplates,
+    scheduleRows,
     loadingData, 
     error, 
-    schedule, 
-    setSchedule, 
     refresh: fetchData 
   }
 }

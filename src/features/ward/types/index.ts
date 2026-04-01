@@ -1,12 +1,9 @@
-// features/ward/types.ts
-
 export interface Ward {
   wardId: string
   wardName: string
   member: number
   createdBy: string
 }
-
 export interface WardDetail {
   wardId: string
   wardName: string
@@ -17,20 +14,7 @@ export interface WardDetail {
   status: string
   createdBy: string
   updatedBy: string
-
   userRole: 'head_nurse' | 'nurse'
-}
-
-
-export interface EnterWardResponse {
-  wardId: string
-  isMember: boolean
-}
-
-export enum ShiftTemplateType {
-  MORNING = 'morning',
-  AFTERNOON = 'afternoon',
-  NIGHT = 'night'
 }
 
 export interface ShiftTemplate {
@@ -42,23 +26,55 @@ export interface ShiftTemplate {
   requiredPeople: number;
 }
 
-export interface SaveShiftPayload {
-  wardId: string
-  type: ShiftTemplateType
-  startTime: string
-  endTime: string
-  requiredPeople: number
-  shiftTemplateId?: string // ส่งมาเพื่อบอกว่าเป็น Update
+export enum ShiftTemplateType {
+  MORNING = 'morning',
+  AFTERNOON = 'afternoon',
+  NIGHT = 'night'
 }
 
+export enum AssignmentType {
+  SHIFT = 'shift',
+  OFF = 'off',
+  LEAVE = 'leave',
+  EMERGENCY = 'emergency',
+  NONE = 'none'
+}
 
-// ✅ เพิ่มอันนี้เข้าไปครับ สำหรับใช้รับ-ส่งข้อมูลระหว่าง Component
+export interface DayAssignment {
+  date: string;
+  shiftTemplateType: 'morning' | 'afternoon' | 'night' | null;
+  assignmentType: AssignmentType;
+}
+
+export interface UserShiftAssignment {
+  userId: string;
+  name: string;
+  userRole?: 'head_nurse' | 'nurse';
+  assignments: DayAssignment[];
+}
+
+export interface NurseSummary {
+  morning: number;
+  afternoon: number;
+  night: number;
+  emergency: number;
+  off: number;
+  leave: number;
+  totalShifts: number;
+}
+
+// UI Model สำหรับใช้ใน State ของหน้าตารางเวร
+export interface NurseScheduleRow {
+  displayName: string;
+  dailyShifts: string[][]; // [dayIndex][shiftIndex] -> ["ช", "บ", "ด"]
+  summary: NurseSummary;
+}
+
 export interface ShiftSyncData {
   shiftTemplateId?: string;
   startTime: string;
   endTime: string;
   requiredPeople: number;
-  originalRequiredPeople?: number; // ✅ เพิ่มเพื่อใช้เทียบค่าเดิมจาก DB
+  originalRequiredPeople?: number;
   hasError: boolean;
 }
-
