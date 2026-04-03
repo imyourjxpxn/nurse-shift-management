@@ -32,10 +32,11 @@ export function NurseSummaryPanel({ scheduleRows }: Props) {
                 </span>
 
                 <div className="flex gap-1 text-gray-600">
-                  <span className="w-24 text-sky-700">เวรเช้า : {summary.morning}</span>
+                  <span className="w-24 text-blue-700">เวรเช้า : {summary.morning}</span>
                   <span className="w-24 text-orange-700">เวรบ่าย : {summary.afternoon}</span>
                   <span className="w-24 text-violet-700">เวรดึก : {summary.night}</span>
                   <span className="w-32 text-rose-600 font-bold">Emergency : {summary.emergency}</span>
+                  <span className="w-24 text-emerald-600 font-bold">Off : {summary.off}</span>
                   <span className="w-20 text-slate-500">ลา : {summary.leave}</span>
                   <span className="font-bold text-blue-600 min-w-[100px] text-right bg-blue-50 px-3 py-1 rounded-lg border border-blue-100">
                     รวมเวร : {summary.totalShifts}

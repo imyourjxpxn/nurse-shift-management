@@ -48,9 +48,19 @@ export enum AssignmentType {
 }
 
 export interface DayAssignment {
+  shiftAssignmentId: string;
   date: string;
   shiftTemplateType: 'morning' | 'afternoon' | 'night' | null;
   assignmentType: AssignmentType;
+}
+
+export interface ShiftCellData {
+  shiftTemplateId: string;
+  shiftAssignmentId: string;
+  assignmentType: AssignmentType;
+  code: string; // "ช", "บ", "ด", "E", "o", "ล"
+  templateType?: 'morning' | 'afternoon' | 'night';
+  isPending?: boolean;
 }
 
 export interface UserShiftAssignment {
@@ -73,7 +83,7 @@ export interface NurseSummary {
 // UI Model สำหรับใช้ใน State ของหน้าตารางเวร
 export interface NurseScheduleRow {
   displayName: string;
-  dailyShifts: string[][]; // [dayIndex][shiftIndex] -> ["ช", "บ", "ด"]
+  dailyShifts: (ShiftCellData | null)[][]; // [dayIndex][shiftIndex] -> [ShiftCellData]
   summary: NurseSummary;
 }
 
