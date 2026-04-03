@@ -45,13 +45,19 @@ export function SelectShiftModal({
 
   const getLabel = (type: string) => SHIFT_LABELS[type] || type;
 
-  // --- 🛡️ VALIDATION LOGIC (เทาปุ่มเฉพาะที่บันทึกใน DB แล้ว) ---
-  const hasSavedNormal = currentAssignments.some(a => ['morning', 'afternoon', 'night'].includes(a.templateType || a.assignmentType));
-  const hasSavedSpecial = currentAssignments.some(a => ['emergency', 'leave', 'off'].includes(a.templateType || a.assignmentType));
+  // --- 🛡️ VALIDATION LOGIC ---
+  const hasSavedNormal = currentAssignments.some(a => 
+    ['morning', 'afternoon', 'night'].includes(a.templateType || a.assignmentType)
+  );
+  const hasSavedSpecial = currentAssignments.some(a => 
+    ['emergency', 'leave', 'off'].includes(a.templateType || a.assignmentType)
+  );
 
   const getBlockStatus = (type: string) => {
     const isSpecialInput = ['emergency', 'leave', 'off'].includes(type);
-    const isAlreadySaved = currentAssignments.some(a => (a.templateType || a.assignmentType) === type);
+    const isAlreadySaved = currentAssignments.some(a => 
+      (a.templateType || a.assignmentType) === type
+    );
     
     if (isAlreadySaved) return true;
     if (isSpecialInput && hasSavedNormal) return true;
@@ -63,7 +69,7 @@ export function SelectShiftModal({
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 text-slate-900 font-sans">
       <div className="bg-white rounded-[2.5rem] w-full max-w-[440px] shadow-2xl relative overflow-hidden flex flex-col animate-in zoom-in duration-200">
         
-        {/* Header */}
+        {/* 1. Header */}
         <div className="p-8 pb-4 flex justify-between items-start border-b border-slate-50">
           <div className="text-left">
             <h2 className="text-2xl font-black text-slate-800 tracking-tight">จัดการเวร</h2>
@@ -78,16 +84,19 @@ export function SelectShiftModal({
           </button>
         </div>
 
-        {/* Content */}
+        {/* 2. Content Area */}
         <div className={`px-8 py-6 flex-1 overflow-y-auto max-h-[60vh] ${deleteTarget ? 'blur-md pointer-events-none' : ''}`}>
+          
+          {/* List ของเวรที่บันทึกแล้ว */}
           <AssignmentList 
             current={currentAssignments} 
             onDelete={setDeleteTarget} 
             getLabel={getLabel} 
           />
 
-          <div className="mb-8 mt-4">
-            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 text-left px-1">เพิ่มเวรทำงาน</p>
+          {/* ส่วนเลือกเวรปกติ */}
+          <div className="mb-8 mt-4 text-left">
+            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">เพิ่มเวรทำงาน</p>
             <div className="grid gap-2">
               {['morning', 'afternoon', 'night'].map((type) => {
                 const template = shiftTemplates.find(t => t.type === type);
@@ -99,15 +108,16 @@ export function SelectShiftModal({
                     timeRange={`${template?.startTime || '00:00'} - ${template?.endTime || '00:00'}`}
                     isSelected={selectedTypes.includes(type)}
                     isBlocked={getBlockStatus(type)}
-                    onClick={() => onSelectType(type)} // คลิกซ้ำขอบหาย = ล้างค่า local
+                    onClick={() => onSelectType(type)}
                   />
                 );
               })}
             </div>
           </div>
 
-          <div>
-            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 text-left px-1">กรณีพิเศษ</p>
+          {/* ส่วนเลือกกรณีพิเศษ */}
+          <div className="text-left">
+            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">กรณีพิเศษ</p>
             <div className="grid grid-cols-3 gap-2">
               {['emergency', 'leave', 'off'].map((type) => (
                 <SpecialOption 
@@ -122,7 +132,7 @@ export function SelectShiftModal({
           </div>
         </div>
 
-        {/* Footer (เหลือ 2 ปุ่ม: ยกเลิก และ ยืนยัน) */}
+        {/* 3. Footer Buttons */}
         <div className={`p-8 bg-white flex gap-3 border-t border-slate-50 ${deleteTarget ? 'hidden' : ''}`}>
           <button 
             onClick={onClose} 
@@ -139,17 +149,16 @@ export function SelectShiftModal({
           </button>
         </div>
 
-        {/* Confirmation Overlay สำหรับการลบ (DB Only) */}
-{deleteTarget && (
-  <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur-md flex items-center justify-center p-8 animate-in fade-in">
-    <div className="text-center w-full max-w-[340px]"> {/* ปรับขยายกว้างขึ้นเล็กน้อยให้พอดีปุ่มแนวนอน */}
-      <div className="w-20 h-20 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4">
-        <AlertCircle size={40} />
-      </div>
-      <h3 className="text-2xl font-black text-slate-800">ยืนยันการลบ?</h3>
-      <p className="text-slate-500 text-sm mt-2">"{deleteTarget.name}" จะถูกลบจากระบบ</p>
-      
-              {/* ปรับจาก flex-col เป็น flex-row และใส่ flex-1 ที่ตัวปุ่ม */}
+        {/* 4. Delete Confirmation Overlay (อยู่ด้านบนสุดของ Modal) */}
+        {deleteTarget && (
+          <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur-md flex items-center justify-center p-8 animate-in fade-in">
+            <div className="text-center w-full max-w-[340px]">
+              <div className="w-20 h-20 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle size={40} />
+              </div>
+              <h3 className="text-2xl font-black text-slate-800">ยืนยันการลบ?</h3>
+              <p className="text-slate-500 text-sm mt-2">"{deleteTarget.name}" จะถูกลบจากระบบ</p>
+              
               <div className="flex gap-3 mt-8">
                 <button 
                   onClick={() => setDeleteTarget(null)} 
@@ -168,8 +177,8 @@ export function SelectShiftModal({
               </div>
             </div>
           </div>
-          )}
+        )}
       </div>
-    </div>
+    </div> 
   );
 }
