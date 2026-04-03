@@ -1,20 +1,25 @@
 'use client'
 
 import { useState } from 'react'
-import { createShiftTemplate } from '@/features/ward/api/createShiftTemplate'
-import { createShiftRequirement } from '@/features/ward/api/createShiftRequirement'
-import { createShiftAssignment } from '@/features/ward/api/createShiftAssign'
+import { createShiftAssignment } from '@/features/ward/api/createShiftAssign' 
+import { createShiftTemplate } from '@/features/ward/api/createShiftTemplate' 
+import { createShiftRequirement } from '@/features/ward/api/createShiftRequirement' 
 import { ShiftSyncData } from '@/features/ward/types'
+import { getMissingEmergencyDays } from '../utils/getMissingEmergency'
 
 interface SaveConfigProps {
   wardId: string
   year: number
-  month: number // รับ 0-11
+  month: number
   isFormValid: boolean
   validationMsg: string[]
+  daysInMonth: number
+  scheduleRows: any
 }
 
-export function useSaveConfig({ wardId, year, month, isFormValid, validationMsg }: SaveConfigProps) {
+export function useSaveConfig({ 
+  wardId, year, month, isFormValid, validationMsg, daysInMonth, scheduleRows 
+}: SaveConfigProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -25,113 +30,113 @@ export function useSaveConfig({ wardId, year, month, isFormValid, validationMsg 
     pendingAssignments: any[],
     onSuccess: () => void
   ) => {
-    // 1. Validate ข้อมูลเบื้องต้น
+    
     if (!isFormValid) {
       setValidationErrors(validationMsg);
       setIsSidebarOpen(true);
-      return;
+      return; 
     }
+
+    setValidationErrors([]); 
 
     try {
       setIsSaving(true);
-      setValidationErrors([]);
       
-      // ตัวแปรสำหรับถือข้อมูล Assignment ที่อาจต้องอัปเดต ID ใหม่
-      let finalAssignments = [...pendingAssignments];
-      const subsequentRequests: Promise<any>[] = [];
+      // 🚩 เช็คก่อนว่าเป็นการสร้างใหม่ (Create) หรืออัปเดต (Update)
+      // โดยดูว่ามี shiftTemplateId ครบทุกเวรหรือยัง
+      const isUpdateMode = Object.values(configData).every(d => !!d.shiftTemplateId);
+      
+      let currentTemplates = [];
 
-      // --- 🔍 STEP 1: จัดการ Shift Template (Create New) ---
-      const templatesToCreate = Object.entries(configData)
-        .filter(([_, data]) => !data.shiftTemplateId && !data.hasError)
-        .map(([type, data]) => ({
+      if (!isUpdateMode) {
+        // --- STEP 1: เฉพาะกรณี "สร้างใหม่ครั้งแรก" เท่านั้น ---
+        const templatePayload = Object.entries(configData).map(([type, data]) => ({
           wardId,
-          type,
+          type: type.toLowerCase(), 
           startTime: data.startTime,
           endTime: data.endTime,
-          requiredPeople: Number(data.requiredPeople)
+          requiredPeople: Number(data.requiredPeople) || 0
         }));
 
-      if (templatesToCreate.length > 0) {
-        console.log("⏳ [Step 1] Creating new templates...");
-        // 🚩 สำคัญ: ต้องให้ createShiftTemplate คืนค่า Array ของ Template ที่มี ID ใหม่มาด้วย
-        const newlyCreated = await createShiftTemplate(templatesToCreate); 
-
-        // 🚩 Mapping ID ใหม่กลับเข้าไปใน pendingAssignments
-        finalAssignments = finalAssignments.map(item => {
-          if (item.assignmentType === 'shift' || ['morning', 'afternoon', 'night'].includes(item.templateType)) {
-             // หา Template ที่เพิ่งสร้างใหม่ที่ตรงกับ Type ของ Assignment นี้
-             const match = newlyCreated.find((t: any) => t.type === item.templateType);
-             if (match) {
-               return { ...item, shiftTemplateId: match.shiftTemplateId };
-             }
-          }
-          return item;
-        });
+        // ยิง API สร้าง Template
+        currentTemplates = await createShiftTemplate(templatePayload);
+      } else {
+        // ถ้าเป็นโหมด Update ไม่ต้องยิง API สร้างใหม่ ให้ใช้ข้อมูลจาก configData ได้เลย
+        console.log("⚡ Update Mode: Skipping template creation");
       }
 
-      // --- 🔍 STEP 2: จัดการ Requirement (Update Existing) ---
-      Object.entries(configData).forEach(([_, data]) => {
-        const isExisting = !!data.shiftTemplateId;
-        const isChanged = Number(data.requiredPeople) !== Number(data.originalRequiredPeople);
+      // --- STEP 2: Update Requirements (ยิงทุกครั้งที่มีการกดเซฟ) ---
+      const requirementPromises = Object.entries(configData).map(async ([type, data]) => {
         
-        if (isExisting && isChanged) {
-          subsequentRequests.push(createShiftRequirement(
-            data.shiftTemplateId!, 
-            Number(data.requiredPeople)
-          ));
+        // 1. หา ID: ถ้าสร้างใหม่เอาจาก currentTemplates ถ้าอัปเดตเอาจาก configData
+        let templateId = data.shiftTemplateId;
+
+        if (!templateId && !isUpdateMode) {
+          const target = currentTemplates?.find((item: any) => 
+            (item?.type || "").toLowerCase() === type.toLowerCase()
+          );
+          templateId = target?.shiftTemplateId;
         }
+
+        if (!templateId) {
+          throw new Error(`ไม่พบรหัสเทมเพลตสำหรับเวร ${type} กรุณารีเฟรชหน้าเว็บ`);
+        }
+
+        // ยิง API อัปเดตจำนวนคนที่ต้องการ (Requirement)
+        return createShiftRequirement(templateId, Number(data.requiredPeople));
       });
 
-      // --- 🔍 STEP 3: จัดการ Shift Assignment (ตารางเวร) ---
-      if (finalAssignments.length > 0) {
-        const apiPayload = finalAssignments.map(item => ({
-          userId: item.userId,
-          date: item.date, // Format YYYY-MM-DD
-          assignmentType: item.assignmentType.toLowerCase(),
-          // ใช้ ID ที่ได้มาจากการ Map ใน Step 1
-          ...(item.shiftTemplateId && { shiftTemplateId: item.shiftTemplateId })
-        }));
+      await Promise.all(requirementPromises);
 
-        console.log("🚀 [Step 3] Sending Assignments:", apiPayload);
-        
-        subsequentRequests.push(createShiftAssignment(
-          wardId, 
-          year, 
-          month, 
-          apiPayload
-        ));
-      }
+      // --- STEP 3: Save Assignments (บันทึกลงตาราง) ---
+      const response = await createShiftAssignment(
+        wardId, 
+        year, 
+        month, 
+        pendingAssignments
+      );
 
-      // --- 🚀 Execute All Remaining Requests ---
-      if (subsequentRequests.length > 0) {
-        await Promise.all(subsequentRequests);
-        console.log("✨ Save Completed!");
-      } else if (templatesToCreate.length === 0) {
-        setIsSaving(false);
-        return;
-      }
-
-      // --- ✅ Success Logic ---
+      // --- STEP 4: Success Handling ---
       setShowSuccessToast(true);
-      setIsSidebarOpen(false);
-      onSuccess(); // ในนี้ต้องมี setPendingAssignments([]) และ refreshData()
+      onSuccess(); 
+
+      const postSaveMessages: string[] = [];
+      const missingDays = getMissingEmergencyDays(scheduleRows, pendingAssignments, daysInMonth);
+      if (missingDays.length > 0) {
+        postSaveMessages.push(`⚠️ วันที่ ${missingDays.join(', ')} ยังไม่มีเวร Emergency`);
+      }
+
+      const serverWarnings = response?.warning || [];
+      const allWarnings = [...postSaveMessages, ...serverWarnings];
+
+      if (allWarnings.length > 0) {
+        setValidationErrors(allWarnings);
+        setIsSidebarOpen(true); 
+      } else {
+        setIsSidebarOpen(false); 
+      }
+
       setTimeout(() => setShowSuccessToast(false), 3000);
 
     } catch (err: any) {
-      console.error("❌ Save Error:", err);
-      setValidationErrors([err.message || "เกิดข้อผิดพลาดในการบันทึก"]);
+      console.error("Save Error:", err);
+      
+      let thaiMsg = "เกิดข้อผิดพลาดในการบันทึกข้อมูล";
+      const rawError = err.message || "";
+
+      if (rawError.includes("limit exceeded")) {
+        thaiMsg = "วอร์ดนี้มีข้อมูลเวรครบแล้ว ระบบจะข้ามไปอัปเดตจำนวนคนและตารางแทน";
+      } else if (rawError.includes("already exists")) {
+        thaiMsg = "ข้อมูลเวรนี้ถูกสร้างไว้แล้ว";
+      } else if (rawError.includes("malformed")) {
+        thaiMsg = "รหัสยืนยันตัวตนไม่ถูกต้อง กรุณาล็อกอินใหม่";
+      } 
+      setValidationErrors([thaiMsg]);
       setIsSidebarOpen(true);
     } finally {
       setIsSaving(false);
     }
   };
 
-  return {
-    isSaving,
-    showSuccessToast,
-    validationErrors,
-    isSidebarOpen,
-    setIsSidebarOpen,
-    handleSave
-  }
+  return { isSaving, showSuccessToast, validationErrors, isSidebarOpen, setIsSidebarOpen, handleSave };
 }

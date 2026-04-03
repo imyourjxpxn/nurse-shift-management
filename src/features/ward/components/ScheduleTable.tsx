@@ -8,9 +8,16 @@ interface Props {
   onCellClick?: (userId: string, day: number) => void
   daysInMonth: number;
   pendingAssignments?: any[]; 
+  isDisabled?: boolean; // 🚩 รับค่าเพื่อเช็คว่า Config ครบหรือยัง
 }
 
-export function ScheduleTable({ scheduleRows, onCellClick, daysInMonth, pendingAssignments = [] }: Props) {
+export function ScheduleTable({ 
+  scheduleRows, 
+  onCellClick, 
+  daysInMonth, 
+  pendingAssignments = [],
+  isDisabled = false // Default เป็น false (ให้แก้ได้ถ้าไม่ได้ส่งค่ามา)
+}: Props) {
   const days = Array.from({ length: daysInMonth }, (_, i) => i)
   
   const sortedEntries = Object.entries(scheduleRows).sort(([, a], [, b]) => {
@@ -21,7 +28,6 @@ export function ScheduleTable({ scheduleRows, onCellClick, daysInMonth, pendingA
     return 0;
   });
 
-  // ✅ ปรับให้รองรับ Logic เดียวกับ Backend/useScheduleData
   const getPendingCode = (item: any) => {
     if (item.templateType === 'morning') return 'ช';
     if (item.templateType === 'afternoon') return 'บ';
@@ -34,7 +40,10 @@ export function ScheduleTable({ scheduleRows, onCellClick, daysInMonth, pendingA
 
   return (
     <div className="relative w-full overflow-auto max-h-[75vh] rounded-2xl border border-sky-100 shadow-sm bg-white">
-      <table className="w-full border-separate border-spacing-0 text-slate-900">
+      <table className={`w-full border-separate border-spacing-0 text-slate-900 transition-all duration-300
+        ${isDisabled ? 'opacity-50 grayscale-[0.5] select-none pointer-events-none' : 'opacity-100'}`}>
+        
+        {/* --- Header --- */}
         <thead className="sticky top-0 z-40">
           <tr className="bg-sky-100 text-sky-900">
             <th className="sticky left-0 z-50 bg-sky-100 border-b border-r border-sky-200 p-4 text-left min-w-[240px] font-bold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
@@ -48,6 +57,7 @@ export function ScheduleTable({ scheduleRows, onCellClick, daysInMonth, pendingA
           </tr>
         </thead>
 
+        {/* --- Body --- */}
         <tbody className="bg-white">
           {sortedEntries.length > 0 ? (
             sortedEntries.map(([userId, row]) => {
@@ -63,10 +73,7 @@ export function ScheduleTable({ scheduleRows, onCellClick, daysInMonth, pendingA
                   </td>
 
                   {days.map((day) => {
-                    // ✅ 1. กรองเอาเฉพาะข้อมูลที่มีค่าจริง (ไม่เอา null)
                     const dbShifts = (dailyShifts[day] || []).filter((s): s is ShiftCellData => s !== null);
-                    
-                    // 2. ดึงข้อมูลที่รอการบันทึก
                     const pShifts = pendingAssignments
                       .filter(p => p.userId === userId && p.day === (day + 1))
                       .map(p => ({
@@ -74,14 +81,15 @@ export function ScheduleTable({ scheduleRows, onCellClick, daysInMonth, pendingA
                         isPending: true 
                       }));
 
-                    // 3. รวมร่าง (DB ขึ้นก่อนตามด้วย Pending)
                     const combinedShifts = [...dbShifts, ...pShifts];
 
                     return (
                       <td 
                         key={day} 
-                        onClick={() => onCellClick?.(userId, day)} 
-                        className="border-b border-r border-sky-50 p-2 cursor-pointer transition-all hover:bg-sky-50/50"
+                        // แม้ pointer-events-none จะดักไว้แล้ว แต่ใส่เช็คกันเหนื่อยที่ onClick ด้วยครับ
+                        onClick={() => !isDisabled && onCellClick?.(userId, day)} 
+                        className={`border-b border-r border-sky-50 p-2 transition-all 
+                          ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-sky-50/50'}`}
                       >
                         <div className="flex justify-center items-center min-h-[48px] gap-1.5">
                           {combinedShifts.map((s, idx) => (
@@ -91,12 +99,10 @@ export function ScheduleTable({ scheduleRows, onCellClick, daysInMonth, pendingA
                                 ${getShiftStyles(s.code)} 
                                 ${s.isPending ? 'opacity-50 border-dashed border-slate-400 animate-pulse scale-90' : 'shadow-sm'}
                               `}
-                              title={s.isPending ? "รอการบันทึก..." : ""}
                             >
                               {s.code}
                             </div>
                           ))}
-                          {/* ถ้าวันนั้นว่างเลย ให้โชว์จุดไข่ปลาจางๆ (Optional - เพื่อความสวยงาม) */}
                           {combinedShifts.length === 0 && (
                             <span className="text-slate-200 text-xs">-</span>
                           )}
@@ -110,7 +116,7 @@ export function ScheduleTable({ scheduleRows, onCellClick, daysInMonth, pendingA
           ) : (
             <tr>
               <td colSpan={daysInMonth + 1} className="p-20 text-center text-slate-400 font-bold text-xl">
-                ไม่พบข้อมูลพยาบาลในวอร์ดนี้
+                ไม่พบข้อมูลพยาบาล
               </td>
             </tr>
           )}
