@@ -30,24 +30,19 @@ import { useScheduleModal } from '@/features/ward/hooks/useScheduleModal'
 export default function SchedulePage() {
   const { wardId } = useParams() as { wardId: string }
   
-  // 1. จัดการเรื่องเวลาและปฏิทิน
   const { 
     month, year, monthName, daysInMonth, setMonth, setYear 
   } = useCalendar()
 
-  // 2. จัดการข้อมูลหลักของตาราง
   const { 
     wardData, shiftTemplates, loadingData, scheduleRows, refresh 
   } = useScheduleData(wardId, daysInMonth, month, year)
 
-  // 3. จัดการ Modal Logic (ส่ง refresh เข้าไปเพื่อให้กดลบแล้วตารางอัปเดตทันที)
-  const modal = useScheduleModal(scheduleRows, refresh)
-
-  // 4. State สำหรับข้อมูลที่รอการบันทึก
   const [configData, setConfigData] = useState<Record<string, any>>({})
   const [pendingAssignments, setPendingAssignments] = useState<any[]>([])
 
-  // 5. Validation & Saving Logic
+  const modal = useScheduleModal(scheduleRows, refresh, pendingAssignments)
+
   const { isValid, messages } = useShiftValidation(configData)
   const { 
     isSaving, showSuccessToast, validationErrors, 
@@ -58,7 +53,6 @@ export default function SchedulePage() {
     validationMsg: messages 
   })
 
-  // --- Loading State ---
   if (loadingData && Object.keys(scheduleRows).length === 0) {
     return <LoadingSpinner />
   }
@@ -69,7 +63,6 @@ export default function SchedulePage() {
     <div className="p-6 space-y-6 bg-slate-50 min-h-screen relative overflow-x-hidden text-slate-900">
       <BackButton />
       
-      {/* Status UI */}
       {isSaving && <ToastSaving />}
       {showSuccessToast && <ToastSuccess />}
 
@@ -79,7 +72,6 @@ export default function SchedulePage() {
         errors={validationErrors} 
       />
 
-      {/* Header & Save Button */}
       {wardData && (
         <WardDetail 
           ward={wardData} 
@@ -90,14 +82,13 @@ export default function SchedulePage() {
           currentMonthIdx={month} 
           currentYear={year}
           onSave={() => handleSave(configData, pendingAssignments, () => {
-            setPendingAssignments([]); // ล้างค่าที่รอค้างไว้หลังเซฟสำเร็จ
+            setPendingAssignments([]); 
             refresh();
           })} 
         />
       )}
 
       <div className="space-y-6">
-        {/* ส่วนตั้งค่าโควตาเวร */}
         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
           <ShiftConfigPanel 
             isEditable={isHeadNurse}
@@ -106,13 +97,12 @@ export default function SchedulePage() {
           />
         </div>
 
-        {/* ส่วนตารางจัดเวร */}
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-slate-50">
             <h3 className="font-semibold text-gray-700 flex items-center gap-2">
                 จัดตารางเวรพยาบาล — {monthName}
             </h3>
-            <div className="flex flex-wrap gap-x-6 gap-y-2">
+            <div className="flex flex-wrap gap-x-6 gap-y-2 mt-2">
               <LegendItem color="bg-sky-100" label="เวรเช้า : ช" />
               <LegendItem color="bg-orange-100" label="เวรบ่าย : บ" />
               <LegendItem color="bg-violet-100" label="เวรดึก : ด" />
@@ -135,67 +125,54 @@ export default function SchedulePage() {
 
       <NurseSummaryPanel scheduleRows={scheduleRows} />
 
-      {/* Modal จัดการเวรรายคน - เชื่อมต่อ Props จาก Hook modal ทั้งหมด */}
       <SelectShiftModal
         isOpen={modal.isOpen}
         onClose={modal.close}
         nurseName={modal.nurseName}
         dateLabel={`วันที่ ${modal.day + 1} ${monthName}`}
+        userId={modal.userId}
+        day={modal.day}
         currentAssignments={modal.currentAssignments}
-
         shiftTemplates={shiftTemplates}
-        
-        // Selection State/Actions จาก Hook
         selectedTypes={modal.selectedTypes}
         onSelectType={modal.handleSelectType}
-        onClearSelection={() => modal.setSelectedTypes([])}
         
-        // Delete Logic จาก Hook
         deleteTarget={modal.deleteTarget}
         setDeleteTarget={modal.setDeleteTarget}
         isDeleting={modal.isDeleting}
         onExecuteDelete={modal.executeDelete}
-       
-        // 🚩 เพิ่ม Prop นี้เข้าไปเพื่อให้ Modal แสดงรายการที่ "กำลังรอเซฟ" ได้
-        pendingAssignments={pendingAssignments}
         
-        // เมื่อกด Confirm การเพิ่มเวรใหม่
-       // 🚩 ปรับโครงสร้างข้อมูลที่จะเก็บใน PendingAssignments
         onConfirm={(selectedTypes) => {
-      const newItems = selectedTypes.map(type => {
-      // 1. เช็คว่าเป็นเวรปกติหรือไม่
-      const isNormalShift = ['morning', 'afternoon', 'night'].includes(type);
-      
-      // 2. หา Template เพื่อดึง ID (สำคัญมากตามรูป Postman)
-      const template = shiftTemplates.find(t => t.type === type);
-        
-        // 🚩 คำนวณวันที่จริง (1-31)
-      const actualDay = modal.day + 1;
+          const actualDay = modal.day + 1;
 
-      // 3. สร้าง Object ให้โครงสร้างเหมือน Body ใน Postman
-      return {
-        userId: modal.userId,
-        day: actualDay,
-        nurseName: modal.nurseName, // เก็บไว้ดูใน Console/UI
-        // สร้าง Format วันที่ "YYYY-MM-DD"
-        date: `${year}-${String(month + 1).padStart(2, '0')}-${String(actualDay).padStart(2, '0')}`,
-        
-        // ส่งเป็นตัวเล็กตาม Postman: "shift", "leave", "off", "emergency"
-        assignmentType: isNormalShift ? 'shift' : type.toLowerCase(),
-        
-        // ถ้าเป็นเวรปกติ ให้ใส่ shiftTemplateId เข้าไปด้วย
-        ...(isNormalShift && { shiftTemplateId: template?.shiftTemplateId }),
-        
-        // เก็บไว้ debug ใน frontend
-        templateType: isNormalShift ? type : null 
-        };
-      });
+          // 🚩 Logic: ล้างข้อมูลเก่าของ User ในวันเดียวกันออกก่อน (Handle Duplicate/Toggle Clear)
+          setPendingAssignments(prev => {
+            const filtered = prev.filter(p => !(p.userId === modal.userId && p.day === actualDay));
+            
+            // ถ้า User เลือกเวร (Array ไม่ว่าง) ให้ Map ข้อมูลใหม่เข้าไป
+            if (selectedTypes.length > 0) {
+              const newItems = selectedTypes.map(type => {
+                const isNormalShift = ['morning', 'afternoon', 'night'].includes(type);
+                const template = shiftTemplates.find(t => t.type === type);
+                
+                return {
+                  userId: modal.userId,
+                  day: actualDay,
+                  nurseName: modal.nurseName,
+                  date: `${year}-${String(month + 1).padStart(2, '0')}-${String(actualDay).padStart(2, '0')}`,
+                  assignmentType: isNormalShift ? 'shift' : type.toLowerCase(),
+                  ...(isNormalShift && { shiftTemplateId: template?.shiftTemplateId }),
+                  templateType: type // เก็บไว้สำหรับ Frontend แสดงสี/ตัวย่อ
+                };
+              });
+              return [...filtered, ...newItems];
+            }
+            
+            // ถ้า User ไม่เลือกอะไรเลย (Toggle ล้างออกหมด) ให้คืนค่าที่กรองข้อมูลเก่าออกแล้ว
+            return filtered;
+          });
 
-      // Console ดูข้อมูลที่กำลังจะเพิ่มเข้า Queue (ยังไม่ยิง API)
-      console.log("📍 Added to Pending:", newItems);
-
-      setPendingAssignments(prev => [...prev, ...newItems]);
-      modal.close();
+          modal.close();
         }}
       />
 

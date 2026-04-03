@@ -1,53 +1,36 @@
 'use client'
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { deleteShiftAssignment } from '../api/deleteShiftAssign';
 import { 
   NurseScheduleRow, 
-  ShiftCellData, 
-  AssignmentType 
-} from '@/features/ward/types'; // ปรับ path ให้ตรงกับโปรเจกต์คุณ
+  ShiftCellData 
+} from '@/features/ward/types'; 
 
 export function useScheduleModal(
   scheduleRows: Record<string, NurseScheduleRow>, 
-  refreshData: () => void
+  refreshData: () => void,
+  pendingAssignments: any[]
 ) {
-  // 1. State สำหรับเก็บว่ากำลังคลิกที่ Cell ไหน
   const [selectedCell, setSelectedCell] = useState<{ userId: string; day: number } | null>(null);
-  
-  // 2. State สำหรับเก็บเวรที่ User กำลังเลือกเพิ่มใน Modal
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
-  
-  // 3. State สำหรับจัดการการลบเวร
   const [deleteTarget, setDeleteTarget] = useState<{id: string, name: string} | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // 🚩 คำนวณข้อมูลที่จะส่งให้ Modal
   const modalData = useMemo(() => {
     if (!selectedCell || !scheduleRows[selectedCell.userId]) {
-      return { 
-        userId: "", 
-        nurseName: "", 
-        currentAssignments: [], 
-        day: 0, 
-        hasExistingNormal: false, 
-        hasExistingSpecial: false 
-      };
+      return { userId: "", nurseName: "", currentAssignments: [], day: 0, hasExistingNormal: false, hasExistingSpecial: false };
     }
 
     const nurse = scheduleRows[selectedCell.userId];
-    // ดึง Array ของเวรในวันนั้น (โครงสร้าง [เช้า, บ่าย, ดึก] หรือ [Special])
     const dayShiftsRaw = nurse.dailyShifts[selectedCell.day] || [];
-
-    // กรองเอาเฉพาะอันที่ไม่ใช่ null
     const assignments: ShiftCellData[] = dayShiftsRaw.filter((s): s is ShiftCellData => s !== null);
 
-    // ✅ เช็คว่ามีเวรปกติ (SHIFT) อยู่แล้วหรือไม่
-    const hasExistingNormal = assignments.some(a => a.assignmentType === AssignmentType.SHIFT);
-    
-    // ✅ เช็คว่ามีรายการพิเศษ (E/Off/Leave) อยู่แล้วหรือไม่
+    const hasExistingNormal = assignments.some(a => 
+      ['morning', 'afternoon', 'night'].includes(a.templateType || a.assignmentType)
+    );
     const hasExistingSpecial = assignments.some(a => 
-      [AssignmentType.EMERGENCY, AssignmentType.LEAVE, AssignmentType.OFF].includes(a.assignmentType)
+      ['emergency', 'leave', 'off'].includes(a.templateType || a.assignmentType)
     );
 
     return {
@@ -60,33 +43,48 @@ export function useScheduleModal(
     };
   }, [selectedCell, scheduleRows]);
 
-  // 🚩 Function จัดการการคลิกเลือกประเภทเวร
+  const open = useCallback((userId: string, day: number) => {
+    setSelectedCell({ userId, day });
+    
+    // ดึงค่าที่เคยเลือกไว้ (แต่ยังไม่ได้กดเซฟลง DB) มาแสดงไฮไลท์ขอบฟ้า
+    // ตรวจสอบเรื่อง day + 1 ให้ดีว่า logic ฝั่งหน้าตารางใช้แบบไหน
+    const existingPending = pendingAssignments
+      .filter(p => p.userId === userId && p.day === (day + 1))
+      .map(p => p.templateType || p.assignmentType);
+
+    setSelectedTypes(existingPending);
+  }, [pendingAssignments]);
+
   const handleSelectType = (type: string) => {
-    // ตรวจสอบว่าเป็นกลุ่มพิเศษหรือไม่
     const isSpecialInput = ['emergency', 'leave', 'off'].includes(type);
     
-    // 🚫 กฎ: ถ้าในช่องนั้นมีเวรปกติอยู่แล้ว ห้ามกดเลือกประเภทพิเศษเพิ่ม
-    if (isSpecialInput && modalData.hasExistingNormal) {
-      alert("ไม่สามารถเลือกสถานะพิเศษได้ เนื่องจากมีเวรปกติอยู่ในวันนี้แล้ว");
-      return;
-    }
-    // 🚫 กฎ: ถ้ามีสถานะพิเศษ (เช่น OFF) อยู่แล้ว ห้ามกดเลือกเวรปกติเพิ่ม
-    if (!isSpecialInput && modalData.hasExistingSpecial) {
-      alert("ไม่สามารถเลือกเวรปกติได้ เนื่องจากมีสถานะพิเศษอยู่ในวันนี้แล้ว");
-      return;
-    }
+    // 🚩 1. เช็ค Conflict กับ DB (ถ้าติดเงื่อนไข ห้ามทำงานต่อ)
+    // หมายเหตุ: UI จริงจะเทาปุ่มไว้แล้ว แต่กันไว้เผื่อกรณีเลี่ยงผ่านโค้ด
+    const isAlreadyInDB = modalData.currentAssignments.some(
+      a => (a.templateType || a.assignmentType) === type
+    );
+    if (isAlreadyInDB) return;
+
+    if (isSpecialInput && modalData.hasExistingNormal) return;
+    if (!isSpecialInput && modalData.hasExistingSpecial) return;
 
     setSelectedTypes(prev => {
-      // กรณีเลือกพิเศษ (Off/Leave/E): ให้เลือกได้แค่อย่างเดียว
-      if (isSpecialInput) {
-        return prev.includes(type) ? [] : [type];
+      // 🚩 2. Toggle Logic: ถ้ากดซ้ำที่ปุ่มเดิม ให้เอาออก (ขอบหาย)
+      if (prev.includes(type)) {
+        return prev.filter(t => t !== type);
       }
       
-      // กรณีเลือกเวรปกติ (เช้า/บ่าย/ดึก): กรองเอาพวกพิเศษออกก่อน (ป้องกัน User กดค้างไว้)
-      const filtered = prev.filter(t => !['emergency', 'leave', 'off'].includes(t));
-      return filtered.includes(type) 
-        ? filtered.filter(t => t !== type) 
-        : [...filtered, type];
+      // 🚩 3. การเลือกใหม่ (Handle Exclusive Logic)
+      if (isSpecialInput) {
+        // ถ้าเลือก "พิเศษ" (ลา/หยุด/E) -> ให้ล้างค่าอื่นๆ ทั้งหมดที่กำลังเลือกอยู่
+        // เพราะปกติพิเศษมักจะอยู่เดี่ยวๆ ใน 1 วัน
+        return [type];
+      } else {
+        // ถ้าเลือก "เวรปกติ" (เช้า/บ่าย/ดึก) -> ให้ล้าง "พิเศษ" ออก 
+        // แต่สามารถสะสมเวรปกติร่วมกันได้ (เช่น ควงเวร เช้า+บ่าย)
+        const onlyNormals = prev.filter(t => !['emergency', 'leave', 'off'].includes(t));
+        return [...onlyNormals, type];
+      }
     });
   };
 
@@ -96,7 +94,10 @@ export function useScheduleModal(
     try {
       await deleteShiftAssignment(deleteTarget.id);
       setDeleteTarget(null); 
-      refreshData(); // โหลดตารางใหม่
+      refreshData();
+      // ไม่ต้องสั่งปิด Modal ทันทีก็ได้ เพื่อให้ user เห็นผลลัพธ์ว่ารายการหายไปแล้ว
+      // แต่ถ้าอยากให้ลื่นไหลแบบเดิมก็คงไว้ครับ
+      close(); 
     } catch (err: any) {
       alert(err.message || "ลบไม่สำเร็จ");
     } finally {
@@ -120,7 +121,7 @@ export function useScheduleModal(
     setDeleteTarget,
     isDeleting,
     executeDelete,
-    open: (userId: string, day: number) => setSelectedCell({ userId, day }),
+    open,
     close
   };
 }
