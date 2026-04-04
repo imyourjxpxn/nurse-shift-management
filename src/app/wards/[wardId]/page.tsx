@@ -17,7 +17,7 @@ import {
   ToastSaving, 
   ToastSuccess, 
   LegendItem,
-  FloatingErrorBtn // 🚩 Import เพิ่มตรงนี้ครับ
+  FloatingErrorBtn 
 } from '@/features/ward/components/ScheduleUIExtras'
 
 // Hooks
@@ -47,10 +47,10 @@ export default function SchedulePage() {
   // 4. Hook จัดการ Modal (เปิด/ปิด/เลือกเวร/ลบเวร)
   const modal = useScheduleModal(scheduleRows, refresh, pendingAssignments)
 
-  // 5. Hook สำหรับการ Validation
+  // 5. Hook สำหรับการ Validation หน้าบ้าน
   const { isValid, messages } = useShiftValidation(configData)
 
-  // 6. Hook สำหรับการ Save
+  // 6. Hook สำหรับการ Save (🚩 ปรับปรุงการส่ง Props)
   const { 
     isSaving, 
     showSuccessToast, 
@@ -65,7 +65,8 @@ export default function SchedulePage() {
     isFormValid: isValid, 
     validationMsg: messages,
     daysInMonth,
-    scheduleRows: scheduleRows
+    scheduleRows: scheduleRows,
+    shiftTemplates: shiftTemplates // 🚩 ส่ง template จาก DB เข้าไปเช็ค Diff
   })
 
   // แสดง Loading ถ้ายังไม่มีข้อมูล
@@ -100,14 +101,18 @@ export default function SchedulePage() {
           onYearChange={setYear}
           currentMonthIdx={month} 
           currentYear={year}
-          onSave={() => handleSave(configData, pendingAssignments, () => {
-            setPendingAssignments([]); 
-            refresh(); 
-          })} 
+          onSave={() => {
+            // 🚩 สั่งเซฟพร้อมล้างค่า Pending เมื่อสำเร็จ
+            handleSave(configData, pendingAssignments, () => {
+              setPendingAssignments([]); 
+              refresh(); // โหลดข้อมูลใหม่จาก DB หลังเซฟ
+            })
+          }} 
         />
       )}
 
       <div className="space-y-6">
+        {/* แผงตั้งค่าประเภทเวร */}
         <ShiftConfigPanel 
           isEditable={isHeadNurse}
           templates={shiftTemplates}
@@ -129,18 +134,23 @@ export default function SchedulePage() {
             </div>
           </div>
 
+          {/* ตารางจัดการเวร */}
           <ScheduleTable
             daysInMonth={daysInMonth}
             scheduleRows={scheduleRows} 
             pendingAssignments={pendingAssignments}
-            isDisabled={!isValid}
+            isDisabled={!isValid || isSaving} // ปิดตารางขณะกำลังเซฟ
+            userRole={isHeadNurse ? 'head_nurse' : 'nurse'} // กำหนด Role ให้ตารางจัดการสิทธิ์คลิก
+            // currentUserId={session?.user?.id} // 🚩 ส่ง ID ของคุณเข้าไปถ้ามี
             onCellClick={(nurseId, day) => {
-              if (isHeadNurse) modal.open(nurseId, day)
+              // เฉพาะ Head Nurse หรือ เจ้าของแถวเท่านั้นที่เปิด Modal ได้ (Logic อยู่ใน ScheduleTable)
+              modal.open(nurseId, day)
             }}
           />
         </div>
       </div>
 
+      {/* สรุปจำนวนเวรของพยาบาลแต่ละคน */}
       <NurseSummaryPanel scheduleRows={scheduleRows} />
 
       {/* --- Modal เลือกเวร --- */}
@@ -162,18 +172,23 @@ export default function SchedulePage() {
         onConfirm={(selectedTypes) => {
           const actualDay = modal.day + 1;
           setPendingAssignments(prev => {
+            // ลบของเก่าในวันที่เลือกออกก่อน
             const filtered = prev.filter(p => !(p.userId === modal.userId && p.day === actualDay));
+            
             if (selectedTypes.length > 0) {
               const newItems = selectedTypes.map(type => {
                 const isNormalShift = ['morning', 'afternoon', 'night'].includes(type);
-                const template = shiftTemplates.find(t => t.type === type);
+                // ค้นหา ID Template จาก DB
+                const templateFromDb = shiftTemplates.find(t => t.type === type);
+                
                 return {
                   userId: modal.userId,
                   day: actualDay,
                   nurseName: modal.nurseName,
                   date: `${year}-${String(month + 1).padStart(2, '0')}-${String(actualDay).padStart(2, '0')}`,
                   assignmentType: isNormalShift ? 'shift' : type.toLowerCase(),
-                  ...(isNormalShift && { shiftTemplateId: template?.shiftTemplateId }),
+                  // ใช้ ID จาก DB ถ้ามี เพื่อให้ Backend รู้ว่าเป็นเวรประเภทไหน
+                  shiftTemplateId: templateFromDb?.shiftTemplateId || null,
                   templateType: type 
                 };
               });
@@ -185,7 +200,7 @@ export default function SchedulePage() {
         }}
       />
 
-      {/* 🚩 ปุ่มลอยสำหรับเปิด Sidebar (แสดงเมื่อมี error และ sidebar ถูกปิดอยู่) */}
+      {/* 🚩 ปุ่มลอยสำหรับเปิด Sidebar แจ้งเตือนข้อผิดพลาด */}
       {validationErrors.length > 0 && !isSidebarOpen && (
         <FloatingErrorBtn 
           count={validationErrors.length} 

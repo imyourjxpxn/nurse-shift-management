@@ -34,8 +34,8 @@ export function useShiftValidation(configData: Record<string, ShiftSyncData>) {
 
     if (!isReadyToSave) {
       errors.push(isUpdateMode 
-        ? "📝 กรุณาระบุ 'จำนวนพยาบาล' ในเวรที่ต้องการแก้ไข" 
-        : "📝 กรุณากรอก 'เวลา' และ 'จำนวนพยาบาล' ให้ครบทั้ง 3 เวร"
+        ? "กรุณาระบุ 'จำนวนพยาบาล' ในเวรที่ต้องการแก้ไข (ต้องมากกว่า 0)" 
+        : "กรุณากรอก 'เวลา' และ 'จำนวนพยาบาล' ให้ครบทั้ง 3 เวร"
       );
     }
 
@@ -68,14 +68,14 @@ export function useShiftValidation(configData: Record<string, ShiftSyncData>) {
         (nStart < mStart && nStart > aStart);                         // ดึกแทรกกลางแบบผิดๆ
 
       if (aStart === mStart || nStart === aStart || nStart === mStart) {
-        errors.push("⚠️ เวลาเริ่มของแต่ละเวรต้องไม่ซ้ำกันครับ");
+        errors.push("เวลาเริ่มของแต่ละเวรต้องไม่ซ้ำกันครับ");
       }
       else if (aStart < mStart || nStart < aStart) {
         // ถ้าค่าดิบ (Raw) มันย้อนกลับ เช่น บ่ายเริ่ม 06:00 แต่เช้าเริ่ม 08:00
         // เราจะเช็คว่ามันเป็นการตั้งใจให้เป็น "วันถัดไป" จริงๆ หรือกรอกผิด
         // โดยปกติเวร 3 ผลัด (ช,บ,ด) จะต้องจบภายในรอบ 24 ชม.
         if (effectiveNight - mStart >= 1440) {
-          errors.push("⏳ ลำดับเวลาผิดปกติ: เวรทั้ง 3 ผลัดควรอยู่ในรอบ 24 ชั่วโมง และเรียงลำดับ เช้า -> บ่าย -> ดึก ครับ");
+          errors.push("ลำดับเวลาผิดปกติ: เวรทั้ง 3 ผลัดควรอยู่ในรอบ 24 ชั่วโมง และเรียงลำดับ เช้า -> บ่าย -> ดึก ครับ");
         }
       }
 
@@ -100,7 +100,7 @@ export function useShiftValidation(configData: Record<string, ShiftSyncData>) {
           if (checkOverlap(types[i], types[j])) {
             const pairKey = [types[i], types[j]].sort().join('-');
             if (!checkedPairs.has(pairKey)) {
-              errors.push(`❌ เวลาของ '${typeLabels[types[i]]}' และ '${typeLabels[types[j]]}' ทับซ้อนกันอยู่ครับ`);
+              errors.push(`เวลาของ '${typeLabels[types[i]]}' และ '${typeLabels[types[j]]}' ทับซ้อนกันอยู่ครับ`);
               checkedPairs.add(pairKey);
             }
           }

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { createShiftAssignment } from '@/features/ward/api/createShiftAssign' 
 import { createShiftTemplate } from '@/features/ward/api/createShiftTemplate' 
 import { createShiftRequirement } from '@/features/ward/api/createShiftRequirement' 
-import { ShiftSyncData } from '@/features/ward/types'
+import { ShiftSyncData, ShiftTemplate } from '@/features/ward/types'
 import { getMissingEmergencyDays } from '../utils/getMissingEmergency'
 
 interface SaveConfigProps {
@@ -15,10 +15,11 @@ interface SaveConfigProps {
   validationMsg: string[]
   daysInMonth: number
   scheduleRows: any 
+  shiftTemplates: ShiftTemplate[] // 🚩 เพิ่มตรงนี้เพื่อเอาไว้เทียบค่าเก่า
 }
 
 export function useSaveConfig({ 
-  wardId, year, month, isFormValid, validationMsg, daysInMonth, scheduleRows 
+  wardId, year, month, isFormValid, validationMsg, daysInMonth, scheduleRows, shiftTemplates 
 }: SaveConfigProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [validationErrors, setValidationErrors] = useState<{ msg: string; type: 'error' | 'warning' }[]>([])
@@ -50,7 +51,6 @@ export function useSaveConfig({
     pendingAssignments: any[], 
     onSuccess: () => void
   ) => {
-    // 1. เช็ค Validation หน้าบ้าน (เช่น ลืมกรอกข้อมูล)
     if (!isFormValid) {
       setValidationErrors(validationMsg.map(msg => ({ msg, type: 'error' })));
       setIsSidebarOpen(true);
@@ -61,8 +61,9 @@ export function useSaveConfig({
 
     try {
       setIsSaving(true);
+      console.log("🛠️ [Start Save] Checking Data...");
       
-      // --- STEP 1 & 2: Templates & Requirements ---
+      // --- STEP 1: Templates ---
       const isUpdateMode = Object.values(configData).every(d => !!d.shiftTemplateId);
       let currentTemplates: any[] = [];
       
@@ -78,36 +79,55 @@ export function useSaveConfig({
         currentTemplates = Array.isArray(res) ? res : (res?.data || []);
       }
 
+      // --- STEP 2: Requirements (Fixed Logic) ---
       const requirementPromises = Object.entries(configData).map(async ([type, data]) => {
         let templateId = data.shiftTemplateId;
+        const searchType = String(type).trim().toLowerCase();
+
+        // 🔍 เทียบค่าเก่าจาก DB (shiftTemplates)
+        const original = shiftTemplates.find(t => 
+          t.shiftTemplateId === templateId || t.type.toLowerCase() === searchType
+        );
+
+        const newValue = Number(data.requiredPeople) || 0;
+        const oldValue = original ? Number(original.requiredPeople) : -1;
+
+        // 🚩 Console Check
+        if (newValue === oldValue) {
+          console.log(`✅ [Requirement] ${type.toUpperCase()}: คงที่ (${newValue}) -> ไม่ Update`);
+          return null; 
+        }
+
+        console.log(`🔄 [Requirement] ${type.toUpperCase()}: เปลี่ยนจาก ${oldValue} เป็น ${newValue} -> กำลัง Update...`);
+
         if (!templateId && !isUpdateMode) {
-          const searchType = String(type).trim().toLowerCase();
           const target = currentTemplates?.find((item: any) => {
             const tType = item?.shiftTemplate?.type || item?.type || "";
             return String(tType).trim().toLowerCase() === searchType;
           });
           templateId = target?.shiftTemplate?.shiftTemplateId || target?.shiftTemplateId || target?.id;
         }
-        if (!templateId) throw new Error(`ไม่พบ Template สำหรับเวร ${type}`);
-        return createShiftRequirement(templateId, Number(data.requiredPeople));
-      });
-      await Promise.all(requirementPromises);
 
-      // --- STEP 3: Assignments ---
+        if (!templateId) throw new Error(`ไม่พบ Template สำหรับเวร ${type}`);
+        return createShiftRequirement(templateId, newValue);
+      });
+
+      // กรองเฉพาะอันที่ต้องยิง API จริงๆ
+      const validReqPromises = requirementPromises.filter(p => p !== null);
+      if (validReqPromises.length > 0) {
+        await Promise.all(validReqPromises);
+      }
+
+      // --- STEP 3: Assignments (Original Safe Logic) ---
       console.log("🚀 [Step 3] Sending Data to Server...");
       const response = await createShiftAssignment(wardId, year, month, pendingAssignments);
       
-      // 🚩 [DEBUG] ดูค่าจริงที่ Server ส่งกลับมา
       console.log("🔍 [DEBUG] Server Response:", response);
 
-      // 🚩 [SAFETY CHECK] ดัก Error 16 ชม. หรือ Error อื่นๆ ที่อาจซ่อนอยู่ใน Response 200
       const serverDetails = response?.details || response?.data?.details || [];
       const serverError = response?.error || response?.data?.error;
 
-      if (serverError || (Array.isArray(serverDetails) && serverDetails.length > 0)) {
-        console.warn("🚫 [Validation Failed] Server returned error details. Stop saving.");
-        
-        // โยน Error เพื่อให้โดดไปทำงานที่ catch block ด้านล่าง
+      if (serverError || (Array.isArray(serverDetails) && serverError?.code !== 'EMERGENCY_SHIFT_MISSING' && serverDetails.length > 0)) {
         throw { 
           code: serverError?.code || response?.code || 'VALIDATION_FAILED', 
           message: serverError?.message || response?.message, 
@@ -115,16 +135,13 @@ export function useSaveConfig({
         };
       }
 
-      // ✅ [SUCCESS CASE] จะมาถึงตรงนี้ได้ ต้องไม่มี Error Details เท่านั้น
+      // SUCCESS CASE
       setShowSuccessToast(true);
-      
-      // หน่วงเวลาให้ Toast โชว์นิดนึงก่อนสั่ง onSuccess (ซึ่งมักจะไปปิด Modal หรือเปลี่ยนหน้า)
       setTimeout(() => {
         onSuccess();
         setShowSuccessToast(false);
       }, 1000);
 
-      // จัดการ Warning หลังเซฟสำเร็จ
       const finalWarnings: { msg: string; type: 'warning' }[] = [];
       const missingDays = getMissingEmergencyDays(scheduleRows, pendingAssignments, daysInMonth);
       if (missingDays.length > 0) {
@@ -145,25 +162,20 @@ export function useSaveConfig({
     } catch (err: any) {
       console.error("🔴 [handleSave] Catch Block Triggered:", err);
       let finalErrors: { msg: string; type: 'error' | 'warning' }[] = [];
-      
-      // พยายามดึง Details จากทุกจุดที่เป็นไปได้
       const errorDetails = err.details || err.response?.data?.details || [];
       
       if (Array.isArray(errorDetails) && errorDetails.length > 0) {
         const nurseMap = new Map();
         if (scheduleRows) {
           Object.entries(scheduleRows).forEach(([uid, data]: [string, any]) => {
-            nurseMap.set(String(uid).trim(), data.displayName || data.name || data.nurseName);
+            nurseMap.set(String(uid).trim(), data.displayName || data.name);
           });
         }
-
         errorDetails.forEach((info: any) => {
-          // ดักเคส 16 ชม. (ต้องมี userId และ dates)
           if (info.userId && info.dates) {
             const targetId = String(info.userId).trim();
-            const displayName = nurseMap.get(targetId) || `พยาบาล (ID: ${targetId.substring(0, 5)})`;
+            const displayName = nurseMap.get(targetId) || `พยาบาล (${targetId.substring(0, 5)})`;
             const uniqueDays = Array.from(new Set<number>(info.dates.map((d: any) => new Date(d).getDate()))).sort((a, b) => a - b);
-            
             finalErrors.push({ 
               msg: `${displayName}: ขึ้นเวรเกิน 16 ชม. (วันที่ ${uniqueDays.join(', ')})`, 
               type: 'error' 
@@ -172,19 +184,17 @@ export function useSaveConfig({
         });
       }
 
-      // ถ้าไม่มี Error 16 ชม. ให้เช็ค Error ทั่วไปจาก Code/Message
       if (finalErrors.length === 0) {
         const errCode = err.code || err.response?.data?.code || '';
         const errMsg = err.message || err.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึก';
         const formatted = translateError(errCode, errMsg);
-        
         const isWarning = formatted.includes('ไม่ครบ') || formatted.includes('ยังไม่มีการลงเวร');
         finalErrors.push({ msg: formatted, type: isWarning ? 'warning' : 'error' });
       }
 
       setValidationErrors(finalErrors);
       setIsSidebarOpen(true);
-      setShowSuccessToast(false); // ป้องกัน Toast เขียวโผล่ตอนพัง
+      setShowSuccessToast(false);
     } finally {
       setIsSaving(false);
     }

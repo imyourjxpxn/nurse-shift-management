@@ -9,6 +9,7 @@ interface Props {
   daysInMonth: number;
   pendingAssignments?: any[]; 
   isDisabled?: boolean; 
+  userRole?: string;
 }
 
 // 🚩 กำหนดลำดับการแสดงผลในช่องตาราง (ช > บ > ด > E > o > ล)
