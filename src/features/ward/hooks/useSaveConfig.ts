@@ -14,7 +14,7 @@ interface SaveConfigProps {
   isFormValid: boolean
   validationMsg: string[]
   daysInMonth: number
-  scheduleRows: any
+  scheduleRows: any 
 }
 
 export function useSaveConfig({ 
@@ -25,31 +25,56 @@ export function useSaveConfig({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [showSuccessToast, setShowSuccessToast] = useState(false)
 
+  const translateError = (code: string, rawMessage: string): string => {
+    if (!rawMessage) return '';
+    const messages: Record<string, string> = {
+      'DAY_ALREADY_HAS_ASSIGNMENT': '❌ มีการขึ้นเวรในวันที่เลือกอยู่แล้ว',
+      'CONFLICTING_ASSIGNMENT_EXISTS': '❌ พบการลงเวรที่ทับซ้อนกัน',
+      'WARD_ACCESS_DENIED': '❌ คุณไม่มีสิทธิ์แก้ไขข้อมูลวอร์ดนี้',
+      'Unauthorized': '❌ เซสชันหมดอายุ กรุณาล็อกอินใหม่',
+    };
+    return messages[code] || `❌ ${rawMessage}`;
+  };
+
+  const formatWarning = (rawMessage: string): string => {
+    if (!rawMessage) return '';
+    if (rawMessage.toLowerCase().includes("16 continuous working hours")) {
+      const nameMatch = rawMessage.match(/User\s+(.+?)\s+exceeds/i);
+      const dateMatch = rawMessage.match(/on\s+(\d{4}-\d{2}-\d{2})/i);
+      const userName = nameMatch ? nameMatch[1] : "พยาบาล";
+      const dateStr = dateMatch ? new Date(dateMatch[1]).getDate() : "";
+      return `⚠️ ${userName} ทำงานติดต่อกันเกิน 16 ชม. (วันที่ ${dateStr})`;
+    }
+    // 2. จัดการ Warning ตาม WarningType (Enum)
+    if (rawMessage.includes('SHIFT_REQUIREMENT_MISSING')) return '⚠️ จำนวนพยาบาลไม่ครบตามความต้องการของเวร';
+    if (rawMessage.includes('EMERGENCY_SHIFT_MISSING')) return '⚠️ ยังไม่ได้ระบุพยาบาลสำหรับเวร Emergency';
+    if (rawMessage.includes('USER_MISSING_ASSIGNMENT')) return '⚠️ มีพยาบาลบางท่านยังไม่มีการลงเวรในเดือนนี้';
+
+    return `⚠️ ${rawMessage}`; 
+  };
+  
+
   const handleSave = async (
-    configData: Record<string, ShiftSyncData>,
-    pendingAssignments: any[],
+    configData: Record<string, ShiftSyncData>, 
+    pendingAssignments: any[], 
     onSuccess: () => void
   ) => {
-    
     if (!isFormValid) {
-      setValidationErrors(validationMsg);
+      setValidationErrors(validationMsg.map(msg => `❌ ${msg}`));
       setIsSidebarOpen(true);
-      return; 
+      return;
     }
 
-    setValidationErrors([]); 
+    setValidationErrors([]);
 
     try {
       setIsSaving(true);
       
-      // 🚩 เช็คก่อนว่าเป็นการสร้างใหม่ (Create) หรืออัปเดต (Update)
-      // โดยดูว่ามี shiftTemplateId ครบทุกเวรหรือยัง
+      // --- STEP 1: Templates ---
       const isUpdateMode = Object.values(configData).every(d => !!d.shiftTemplateId);
-      
-      let currentTemplates = [];
+      let currentTemplates: any[] = [];
 
       if (!isUpdateMode) {
-        // --- STEP 1: เฉพาะกรณี "สร้างใหม่ครั้งแรก" เท่านั้น ---
         const templatePayload = Object.entries(configData).map(([type, data]) => ({
           wardId,
           type: type.toLowerCase(), 
@@ -57,48 +82,34 @@ export function useSaveConfig({
           endTime: data.endTime,
           requiredPeople: Number(data.requiredPeople) || 0
         }));
-
-        // ยิง API สร้าง Template
         currentTemplates = await createShiftTemplate(templatePayload);
-      } else {
-        // ถ้าเป็นโหมด Update ไม่ต้องยิง API สร้างใหม่ ให้ใช้ข้อมูลจาก configData ได้เลย
-        console.log("⚡ Update Mode: Skipping template creation");
       }
 
-      // --- STEP 2: Update Requirements (ยิงทุกครั้งที่มีการกดเซฟ) ---
+      // --- STEP 2: Requirements ---
       const requirementPromises = Object.entries(configData).map(async ([type, data]) => {
-        
-        // 1. หา ID: ถ้าสร้างใหม่เอาจาก currentTemplates ถ้าอัปเดตเอาจาก configData
         let templateId = data.shiftTemplateId;
-
         if (!templateId && !isUpdateMode) {
           const target = currentTemplates?.find((item: any) => 
             (item?.type || "").toLowerCase() === type.toLowerCase()
           );
           templateId = target?.shiftTemplateId;
         }
-
-        if (!templateId) {
-          throw new Error(`ไม่พบรหัสเทมเพลตสำหรับเวร ${type} กรุณารีเฟรชหน้าเว็บ`);
-        }
-
-        // ยิง API อัปเดตจำนวนคนที่ต้องการ (Requirement)
+        if (!templateId) throw new Error(`ไม่พบ Template สำหรับเวร ${type}`);
         return createShiftRequirement(templateId, Number(data.requiredPeople));
       });
-
       await Promise.all(requirementPromises);
 
-      // --- STEP 3: Save Assignments (บันทึกลงตาราง) ---
-      const response = await createShiftAssignment(
-        wardId, 
-        year, 
-        month, 
-        pendingAssignments
-      );
+      // --- STEP 3: Assignments ---
+      const response = await createShiftAssignment(wardId, year, month, pendingAssignments);
 
-      // --- STEP 4: Success Handling ---
+      console.log("🟢 Save Success Response:", response);
+
+      // ✅ SUCCESS CASE
       setShowSuccessToast(true);
-      onSuccess(); 
+      
+      setTimeout(() => {
+        onSuccess(); 
+      }, 500); // ดีเลย์ครึ่งวินาทีให้ UI นิ่งก่อน
 
       const postSaveMessages: string[] = [];
       const missingDays = getMissingEmergencyDays(scheduleRows, pendingAssignments, daysInMonth);
@@ -106,33 +117,50 @@ export function useSaveConfig({
         postSaveMessages.push(`⚠️ วันที่ ${missingDays.join(', ')} ยังไม่มีเวร Emergency`);
       }
 
-      const serverWarnings = response?.warning || [];
-      const allWarnings = [...postSaveMessages, ...serverWarnings];
+      // ดึง Warning จาก Response 200
+      if (response?.warning && Array.isArray(response.warning)) {
+        const serverWarnings = response.warning.map((msg: string) => formatWarning(msg));
+        postSaveMessages.push(...serverWarnings);
+      }else {
+        console.log("✅ No Server Warnings found in 200 OK"); // 🚩 เพิ่มเพื่อให้รู้ว่า "ไม่เจอ"
+      }
 
-      if (allWarnings.length > 0) {
-        setValidationErrors(allWarnings);
+      // สรุปการแสดงผล Sidebar
+      if (postSaveMessages.length > 0) {
+        setValidationErrors(postSaveMessages);
         setIsSidebarOpen(true); 
       } else {
-        setIsSidebarOpen(false); 
+        setIsSidebarOpen(false); // ปิดเฉพาะกรณีไม่มี Warning เท่านั้น
       }
 
       setTimeout(() => setShowSuccessToast(false), 3000);
 
     } catch (err: any) {
-      console.error("Save Error:", err);
+      console.error("🔴 Save Failed (Error Details):", err);
       
-      let thaiMsg = "เกิดข้อผิดพลาดในการบันทึกข้อมูล";
-      const rawError = err.message || "";
+      let combinedErrors: string[] = [];
+      const serverData = err.data || {}; 
 
-      if (rawError.includes("limit exceeded")) {
-        thaiMsg = "วอร์ดนี้มีข้อมูลเวรครบแล้ว ระบบจะข้ามไปอัปเดตจำนวนคนและตารางแทน";
-      } else if (rawError.includes("already exists")) {
-        thaiMsg = "ข้อมูลเวรนี้ถูกสร้างไว้แล้ว";
-      } else if (rawError.includes("malformed")) {
-        thaiMsg = "รหัสยืนยันตัวตนไม่ถูกต้อง กรุณาล็อกอินใหม่";
-      } 
-      setValidationErrors([thaiMsg]);
-      setIsSidebarOpen(true);
+      const mainMessage = err.message || "";
+      if (mainMessage.toLowerCase().includes("16 continuous working hours")) {
+        const translated = formatWarning(mainMessage).replace('⚠️', '❌');
+        combinedErrors.push(translated);
+      } else {
+        combinedErrors.push(translateError(err.code || '', mainMessage));
+      }
+
+      if (serverData.errors && Array.isArray(serverData.errors)) {
+        const extraErrors = serverData.errors.map((e: any) => translateError(e.code, e.message));
+        combinedErrors.push(...extraErrors);
+      }
+
+      if (serverData.warning && Array.isArray(serverData.warning)) {
+        const warnings = serverData.warning.map((msg: string) => formatWarning(msg));
+        combinedErrors.push(...warnings);
+      }
+
+      setValidationErrors(Array.from(new Set(combinedErrors)).filter(Boolean));
+      setIsSidebarOpen(true); 
     } finally {
       setIsSaving(false);
     }

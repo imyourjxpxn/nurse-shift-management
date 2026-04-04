@@ -17,18 +17,13 @@ export async function createShiftAssignment(
 
   const url = `${baseUrl}/api/shift-assignment/create/${wardId}?${params.toString()}`;
 
+  // 🚩 apiFetch จัดการ throw error ให้แล้ว 
+  // ดังนั้นถ้ามันรันมาถึงบรรทัดล่างนี้ แปลว่า res.ok แน่นอน
   const response = await apiFetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
     body: JSON.stringify(data)
   });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || "ไม่สามารถสร้างข้อมูลเวรได้");
-  }
-
+  // ใช้ .json() ได้เลย เพราะ apiFetch คืนค่า res (Response Object) มาให้
   return await response.json();
 }

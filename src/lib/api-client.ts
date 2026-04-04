@@ -6,23 +6,23 @@ export async function apiFetch(
 ) {
   const isBrowser = typeof window !== "undefined"
 
-  // 🚩 1. ดึง Token และจัดการ "ล้าง" เครื่องหมายคำพูด (") และช่องว่าง (Space)
+  // 🚩 1. ดึง Token และจัดการ "ล้าง" (คงเดิมตามอันเก่าที่คุณใช้)
   const rawToken = isBrowser ? localStorage.getItem("accessToken") : null
   const token = rawToken ? rawToken.replace(/"/g, "").trim() : null
 
   const headers = new Headers(init?.headers)
 
-  // 🚩 2. ใส่ Content-Type เฉพาะตอนมี body (และยังไม่มีการ set มาก่อน)
+  // 🚩 2. ใส่ Content-Type เฉพาะตอนมี body
   if (!headers.has("Content-Type") && init?.body) {
     headers.set("Content-Type", "application/json")
   }
 
-  // 🚩 3. ตรวจสอบ Token ว่าไม่ใช่ String "null" หรือ "undefined" ก่อนส่ง
+  // 🚩 3. ตรวจสอบ Token ก่อนส่ง (คงเดิมตามอันเก่า)
   if (token && token !== "undefined" && token !== "null") {
     headers.set("Authorization", `Bearer ${token}`)
   }
 
-  // 🚩 4. จัดการเรื่อง URL (Base URL)
+  // 🚩 4. ตรวจสอบ Environment (คงเดิมตามอันเก่า - กันเหนียวเรื่อง Google Auth)
   if (!API_BASE_URL && typeof input === "string" && !input.startsWith("http")) {
     throw new Error("API_BASE_URL is not defined in environment variables")
   }
@@ -34,7 +34,7 @@ export async function apiFetch(
         : `${API_BASE_URL}${input}`
       : input
 
-  // 👇 DEBUG LOG (เอาไว้เช็คตอนมีปัญหา)
+  // 👇 DEBUG LOG (เก็บไว้ดูว่า Google Auth พ่นอะไรออกมา)
   console.log("===== API DEBUG =====")
   console.log("Final URL:", url)
   console.log("Token Status:", token ? "Token Found & Cleaned" : "No Token")
@@ -48,28 +48,31 @@ export async function apiFetch(
     // 🚩 5. จัดการกรณี Unauthorized (401)
     if (res.status === 401) {
       if (isBrowser) {
-        // ลบ Token ที่อาจจะหมดอายุหรือพังทิ้ง
         localStorage.removeItem("accessToken")
-        // เลือกได้ว่าจะให้เด้งไปหน้า login เลยไหม:
-        // window.location.href = '/login'
       }
       throw new Error("Session หมดอายุ กรุณาเข้าสู่ระบบใหม่")
     }
 
-    // 🚩 6. จัดการ Error อื่นๆ จาก Server
+    // 🚩 6. จัดการ Error (400, 500) และดึงข้อมูล Warning/Error ก้อนใหญ่มาใช้
     if (!res.ok) {
       const errorText = await res.text()
-      let errorMessage = "เกิดข้อผิดพลาดในการเชื่อมต่อ"
+      let errorData: any = {}
+      
       try {
-        const errorData = JSON.parse(errorText)
-        errorMessage = errorData.message || errorMessage
+        errorData = JSON.parse(errorText)
       } catch {
-        errorMessage = errorText || errorMessage
+        errorData = { message: errorText }
       }
-      throw new Error(errorMessage)
+
+      // 🚩 หัวใจสำคัญ: เก็บก้อน errorData ทั้งก้อนลงใน error object
+      const error: any = new Error(errorData.message || "เกิดข้อผิดพลาดในการเชื่อมต่อ")
+      error.status = res.status
+      error.data = errorData // 👈 ห้ามลบบรรทัดนี้ เพราะเราต้องใช้ warning ในหน้าเซฟ
+      
+      throw error
     }
 
-    return res
+    return res // 200 OK
   } catch (error: any) {
     console.error("Fetch Error:", error.message)
     throw error
