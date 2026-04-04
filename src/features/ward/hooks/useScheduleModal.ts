@@ -1,11 +1,8 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { deleteShiftAssignment } from '../api/deleteShiftAssign';
-import { 
-  NurseScheduleRow, 
-  ShiftCellData 
-} from '@/features/ward/types'; 
+import { NurseScheduleRow, ShiftCellData } from '@/features/ward/types'; 
 
 export function useScheduleModal(
   scheduleRows: Record<string, NurseScheduleRow>, 
@@ -17,6 +14,7 @@ export function useScheduleModal(
   const [deleteTarget, setDeleteTarget] = useState<{id: string, name: string} | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // คำนวณข้อมูลที่จะโชว์ใน Modal
   const modalData = useMemo(() => {
     if (!selectedCell || !scheduleRows[selectedCell.userId]) {
       return { userId: "", nurseName: "", currentAssignments: [], day: 0, hasExistingNormal: false, hasExistingSpecial: false };
@@ -43,72 +41,80 @@ export function useScheduleModal(
     };
   }, [selectedCell, scheduleRows]);
 
+  // Sync ค่าที่ User เคยเลือกไว้ (แต่ยังไม่ได้บันทึกลง DB) เมื่อเปิด Modal
+  useEffect(() => {
+    if (selectedCell) {
+      const { userId, day } = selectedCell;
+      const existingPending = pendingAssignments
+        .filter(p => p.userId === userId && p.day === (day + 1))
+        .map(p => p.templateType || p.assignmentType);
+      setSelectedTypes(existingPending);
+    }
+  }, [selectedCell, pendingAssignments]);
+
   const open = useCallback((userId: string, day: number) => {
     setSelectedCell({ userId, day });
-    
-    // ดึงค่าที่เคยเลือกไว้ (แต่ยังไม่ได้กดเซฟลง DB) มาแสดงไฮไลท์ขอบฟ้า
-    // ตรวจสอบเรื่อง day + 1 ให้ดีว่า logic ฝั่งหน้าตารางใช้แบบไหน
-    const existingPending = pendingAssignments
-      .filter(p => p.userId === userId && p.day === (day + 1))
-      .map(p => p.templateType || p.assignmentType);
+  }, []);
 
-    setSelectedTypes(existingPending);
-  }, [pendingAssignments]);
+  // ปิด Modal และล้างค่าชั่วคราวทั้งหมด
+  const close = useCallback(() => {
+    setSelectedCell(null);
+    setSelectedTypes([]);
+    setDeleteTarget(null);
+  }, []);
 
+  // Logic การเลือกเวรแบบ Toggle และ Exclusive (ควงเวรได้ / พิเศษต้องอยู่เดี่ยว)
   const handleSelectType = (type: string) => {
     const isSpecialInput = ['emergency', 'leave', 'off'].includes(type);
     
-    // 🚩 1. เช็ค Conflict กับ DB (ถ้าติดเงื่อนไข ห้ามทำงานต่อ)
-    // หมายเหตุ: UI จริงจะเทาปุ่มไว้แล้ว แต่กันไว้เผื่อกรณีเลี่ยงผ่านโค้ด
     const isAlreadyInDB = modalData.currentAssignments.some(
       a => (a.templateType || a.assignmentType) === type
     );
+    
     if (isAlreadyInDB) return;
-
     if (isSpecialInput && modalData.hasExistingNormal) return;
     if (!isSpecialInput && modalData.hasExistingSpecial) return;
 
     setSelectedTypes(prev => {
-      // 🚩 2. Toggle Logic: ถ้ากดซ้ำที่ปุ่มเดิม ให้เอาออก (ขอบหาย)
       if (prev.includes(type)) {
         return prev.filter(t => t !== type);
       }
       
-      // 🚩 3. การเลือกใหม่ (Handle Exclusive Logic)
       if (isSpecialInput) {
-        // ถ้าเลือก "พิเศษ" (ลา/หยุด/E) -> ให้ล้างค่าอื่นๆ ทั้งหมดที่กำลังเลือกอยู่
-        // เพราะปกติพิเศษมักจะอยู่เดี่ยวๆ ใน 1 วัน
         return [type];
       } else {
-        // ถ้าเลือก "เวรปกติ" (เช้า/บ่าย/ดึก) -> ให้ล้าง "พิเศษ" ออก 
-        // แต่สามารถสะสมเวรปกติร่วมกันได้ (เช่น ควงเวร เช้า+บ่าย)
-        const onlyNormals = prev.filter(t => !['emergency', 'leave', 'off'].includes(t));
-        return [...onlyNormals, type];
+        const normalsOnly = prev.filter(t => !['emergency', 'leave', 'off'].includes(t));
+        return [...normalsOnly, type];
       }
     });
   };
 
+  // 🚩 แก้ไข: ฟังก์ชันลบข้อมูล และปิด Modal เมื่อสำเร็จ
   const executeDelete = async () => {
     if (!deleteTarget) return;
+    
     setIsDeleting(true);
     try {
       await deleteShiftAssignment(deleteTarget.id);
+      
+      // ล้างเป้าหมายการลบก่อน
       setDeleteTarget(null); 
-      refreshData();
-      // ไม่ต้องสั่งปิด Modal ทันทีก็ได้ เพื่อให้ user เห็นผลลัพธ์ว่ารายการหายไปแล้ว
-      // แต่ถ้าอยากให้ลื่นไหลแบบเดิมก็คงไว้ครับ
-      close(); 
+      
+      // สั่งให้หน้าหลักโหลดข้อมูลใหม่ (Table Refresh)
+      refreshData(); 
+      
+      // ✅ ปิด Modal ทันทีหลังจากลบสำเร็จตามที่คุณต้องการ
+      // ใช้ setTimeout เล็กน้อย (100ms) เพื่อให้ UI ดูไม่กระชากจนเกินไป
+      setTimeout(() => {
+        close();
+      }, 100);
+
     } catch (err: any) {
-      alert(err.message || "ลบไม่สำเร็จ");
+      console.error("🔴 Delete failed:", err);
+      alert(err.message || "ลบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
     } finally {
       setIsDeleting(false);
     }
-  };
-
-  const close = () => {
-    setSelectedCell(null);
-    setSelectedTypes([]);
-    setDeleteTarget(null);
   };
 
   return {
