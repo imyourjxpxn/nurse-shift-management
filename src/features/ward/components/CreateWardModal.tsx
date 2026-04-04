@@ -1,18 +1,17 @@
 'use client'
 
 import React from 'react'
-
 import { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Copy, CheckCircle2, PlusCircle } from 'lucide-react'
+import { Copy, CheckCircle2 } from 'lucide-react'
 
 interface CreateWardModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSuccess: () => void // เพื่อสั่งให้หน้า Home รีโหลดข้อมูล
+  onSuccess: () => void 
   createWardFn: (name: string) => Promise<{ joinCode: string; wardName: string }>
 }
 
@@ -37,29 +36,32 @@ export function CreateWardModal({ open, onOpenChange, onSuccess, createWardFn }:
   }
 
   const handleClose = () => {
-    const successHappened = !!createdData // เช็คว่ามีการสร้างสำเร็จจริงไหม (มีข้อมูล joinCode มาไหม)
-  
+    const successHappened = !!createdData
     setWardName('')
     setCreatedData(null)
-    onOpenChange(false) // สั่งปิด Modal
+    onOpenChange(false)
 
-    // 🔥 จุดสำคัญ: ถ้าสร้างสำเร็จ ให้สั่ง loadDashboardData() ที่หน้า Home ทำงาน
     if (successHappened) {
       onSuccess() 
-  }
+    }
   }
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+      {/* 🚩 ใช้ gap-0 เพื่อคุมระยะห่างเอง และ p-6 เพื่อความสมดุล */}
+      <DialogContent className="sm:max-w-md gap-0 p-6">
         {!createdData ? (
           <>
             <DialogHeader>
-              <DialogTitle className="text-left text-xl">สร้างวอร์ดใหม่</DialogTitle>
+              {/* 🚩 leading-none ช่วยให้หัวข้อชิดขอบบรรทัดที่สุด */}
+              <DialogTitle className="text-left text-xl font-bold leading-none text-slate-800">
+                สร้างวอร์ดใหม่
+              </DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-              <div className="mt-4 space-y-5">
-                <Label className="block mb-2 text-sm text-slate-600">
+
+            <form onSubmit={handleSubmit} className="mt-5">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="wardName" className="text-sm font-medium text-slate-600">
                   ชื่อวอร์ด
                 </Label>
                 <Input
@@ -67,19 +69,33 @@ export function CreateWardModal({ open, onOpenChange, onSuccess, createWardFn }:
                   placeholder="เช่น Ward A, กุมารเวชกรรม"
                   value={wardName}
                   onChange={(e) => setWardName(e.target.value)}
-                  className="focus-visible:ring-sky-500"
+                  className="border-sky-200 focus-visible:ring-sky-500"
+                  autoComplete="off"
                 />
               </div>
-              <div className="flex gap-3">
-                <Button type="button" variant="outline" className="flex-1" onClick={handleClose}>ยกเลิก</Button>
-                <Button type="submit" className="flex-1 bg-sky-500 hover:bg-sky-600" disabled={isSubmitting || !wardName}>
+
+              <div className="mt-7 flex gap-3">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="flex-1" 
+                  onClick={handleClose}
+                >
+                  ยกเลิก
+                </Button>
+                <Button 
+                  type="submit" 
+                  className="flex-1 bg-sky-500 text-white transition-colors hover:bg-sky-600 active:bg-sky-700" 
+                  disabled={isSubmitting || !wardName}
+                >
                   {isSubmitting ? 'กำลังสร้าง...' : 'สร้างวอร์ด'}
                 </Button>
               </div>
             </form>
           </>
         ) : (
-          <div className="flex flex-col items-center py-4 text-center">
+          /* 🚩 หน้าแสดงรหัสสำเร็จ (Success State) */
+          <div className="flex flex-col items-center py-2 text-center">
             <div className="mb-4 flex size-16 items-center justify-center rounded-full bg-green-100">
               <CheckCircle2 className="size-10 text-green-600" />
             </div>
@@ -87,16 +103,29 @@ export function CreateWardModal({ open, onOpenChange, onSuccess, createWardFn }:
             <p className="mb-6 text-sm text-slate-500">วอร์ด "{createdData.name}" พร้อมใช้งานแล้ว</p>
             
             <div className="w-full space-y-2 rounded-xl bg-slate-50 p-4">
-              <p className="text-xs font-medium uppercase text-slate-400">Join Code (รหัสสำหรับพยาบาลในวอร์ด)</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                JOIN CODE (รหัสสำหรับพยาบาลในวอร์ด)
+              </p>
               <div className="flex items-center justify-between gap-2 rounded-lg border bg-white p-3 shadow-sm">
                 <code className="text-lg font-bold tracking-widest text-sky-600">{createdData.code}</code>
-                <Button size="icon" variant="ghost" onClick={() => navigator.clipboard.writeText(createdData.code)}>
+                <Button 
+                  size="icon" 
+                  variant="ghost" 
+                  className="hover:bg-sky-50 hover:text-sky-600"
+                  onClick={() => navigator.clipboard.writeText(createdData.code)}
+                >
                   <Copy className="size-4" />
                 </Button>
               </div>
             </div>
             
-            <Button className="mt-8 w-full bg-sky-500" onClick={handleClose}>ตกลง</Button>
+            {/* 🚩 แก้ไข Hover ปุ่มตกลงไม่ให้เป็นสีดำ */}
+            <Button 
+              className="mt-8 w-full bg-sky-500 text-white shadow-sm transition-colors hover:bg-sky-600 active:bg-sky-700" 
+              onClick={handleClose}
+            >
+              ตกลง
+            </Button>
           </div>
         )}
       </DialogContent>

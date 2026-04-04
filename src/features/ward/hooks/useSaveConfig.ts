@@ -21,46 +21,38 @@ export function useSaveConfig({
   wardId, year, month, isFormValid, validationMsg, daysInMonth, scheduleRows 
 }: SaveConfigProps) {
   const [isSaving, setIsSaving] = useState(false)
-  const [validationErrors, setValidationErrors] = useState<string[]>([])
+  const [validationErrors, setValidationErrors] = useState<{ msg: string; type: 'error' | 'warning' }[]>([])
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [showSuccessToast, setShowSuccessToast] = useState(false)
 
   const translateError = (code: string, rawMessage: string): string => {
-    if (!rawMessage) return '';
     const messages: Record<string, string> = {
-      'DAY_ALREADY_HAS_ASSIGNMENT': '❌ มีการขึ้นเวรในวันที่เลือกอยู่แล้ว',
-      'CONFLICTING_ASSIGNMENT_EXISTS': '❌ พบการลงเวรที่ทับซ้อนกัน',
-      'WARD_ACCESS_DENIED': '❌ คุณไม่มีสิทธิ์แก้ไขข้อมูลวอร์ดนี้',
-      'Unauthorized': '❌ เซสชันหมดอายุ กรุณาล็อกอินใหม่',
+      'DAY_ALREADY_HAS_ASSIGNMENT': 'มีการขึ้นเวรในวันที่เลือกอยู่แล้ว',
+      'CONFLICTING_ASSIGNMENT_EXISTS': 'พบการลงเวรที่ทับซ้อนกัน',
+      'WARD_ACCESS_DENIED': 'คุณไม่มีสิทธิ์แก้ไขข้อมูลวอร์ดนี้',
+      'Unauthorized': 'เซสชันหมดอายุ กรุณาล็อกอินใหม่',
+      'EXCEED_MAX_CONTINUOUS_WORK_HOUR': 'พบพยาบาลทำงานติดต่อกันเกิน 16 ชั่วโมง',
+      'SHIFT_TEMPLATE_LIMIT_EXCEEDED': 'จำนวนประเภทเวรในวอร์ดนี้เต็มแล้ว (สูงสุด 3)',
+      'SHIFT_TEMPLATE_TIME_OVERLAP': 'เวลาของเวรใหม่ทับซ้อนกับเวรที่มีอยู่เดิม',
     };
-    return messages[code] || `❌ ${rawMessage}`;
+    return messages[code] || rawMessage || 'เกิดข้อผิดพลาดในการบันทึก';
   };
 
   const formatWarning = (rawMessage: string): string => {
     if (!rawMessage) return '';
-    if (rawMessage.toLowerCase().includes("16 continuous working hours")) {
-      const nameMatch = rawMessage.match(/User\s+(.+?)\s+exceeds/i);
-      const dateMatch = rawMessage.match(/on\s+(\d{4}-\d{2}-\d{2})/i);
-      const userName = nameMatch ? nameMatch[1] : "พยาบาล";
-      const dateStr = dateMatch ? new Date(dateMatch[1]).getDate() : "";
-      return `⚠️ ${userName} ทำงานติดต่อกันเกิน 16 ชม. (วันที่ ${dateStr})`;
-    }
-    // 2. จัดการ Warning ตาม WarningType (Enum)
-    if (rawMessage.includes('SHIFT_REQUIREMENT_MISSING')) return '⚠️ จำนวนพยาบาลไม่ครบตามความต้องการของเวร';
-    if (rawMessage.includes('EMERGENCY_SHIFT_MISSING')) return '⚠️ ยังไม่ได้ระบุพยาบาลสำหรับเวร Emergency';
-    if (rawMessage.includes('USER_MISSING_ASSIGNMENT')) return '⚠️ มีพยาบาลบางท่านยังไม่มีการลงเวรในเดือนนี้';
-
-    return `⚠️ ${rawMessage}`; 
+    if (rawMessage.includes('SHIFT_REQUIREMENT_MISSING')) return 'จำนวนพยาบาลไม่ครบตามความต้องการของเวร';
+    if (rawMessage.includes('USER_MISSING_ASSIGNMENT')) return 'มีพยาบาลบางท่านที่ยังไม่มีการลงเวรในเดือนนี้';
+    return rawMessage; 
   };
-  
 
   const handleSave = async (
     configData: Record<string, ShiftSyncData>, 
     pendingAssignments: any[], 
     onSuccess: () => void
   ) => {
+    // 1. เช็ค Validation หน้าบ้าน (เช่น ลืมกรอกข้อมูล)
     if (!isFormValid) {
-      setValidationErrors(validationMsg.map(msg => `❌ ${msg}`));
+      setValidationErrors(validationMsg.map(msg => ({ msg, type: 'error' })));
       setIsSidebarOpen(true);
       return;
     }
@@ -70,29 +62,31 @@ export function useSaveConfig({
     try {
       setIsSaving(true);
       
-      // --- STEP 1: Templates ---
+      // --- STEP 1 & 2: Templates & Requirements ---
       const isUpdateMode = Object.values(configData).every(d => !!d.shiftTemplateId);
       let currentTemplates: any[] = [];
-
+      
       if (!isUpdateMode) {
-        const templatePayload = Object.entries(configData).map(([type, data]) => ({
-          wardId,
-          type: type.toLowerCase(), 
-          startTime: data.startTime,
+        const payload = Object.entries(configData).map(([type, data]) => ({
+          wardId, 
+          type: type.toLowerCase().trim(), 
+          startTime: data.startTime, 
           endTime: data.endTime,
           requiredPeople: Number(data.requiredPeople) || 0
         }));
-        currentTemplates = await createShiftTemplate(templatePayload);
+        const res = await createShiftTemplate(payload);
+        currentTemplates = Array.isArray(res) ? res : (res?.data || []);
       }
 
-      // --- STEP 2: Requirements ---
       const requirementPromises = Object.entries(configData).map(async ([type, data]) => {
         let templateId = data.shiftTemplateId;
         if (!templateId && !isUpdateMode) {
-          const target = currentTemplates?.find((item: any) => 
-            (item?.type || "").toLowerCase() === type.toLowerCase()
-          );
-          templateId = target?.shiftTemplateId;
+          const searchType = String(type).trim().toLowerCase();
+          const target = currentTemplates?.find((item: any) => {
+            const tType = item?.shiftTemplate?.type || item?.type || "";
+            return String(tType).trim().toLowerCase() === searchType;
+          });
+          templateId = target?.shiftTemplate?.shiftTemplateId || target?.shiftTemplateId || target?.id;
         }
         if (!templateId) throw new Error(`ไม่พบ Template สำหรับเวร ${type}`);
         return createShiftRequirement(templateId, Number(data.requiredPeople));
@@ -100,67 +94,97 @@ export function useSaveConfig({
       await Promise.all(requirementPromises);
 
       // --- STEP 3: Assignments ---
+      console.log("🚀 [Step 3] Sending Data to Server...");
       const response = await createShiftAssignment(wardId, year, month, pendingAssignments);
+      
+      // 🚩 [DEBUG] ดูค่าจริงที่ Server ส่งกลับมา
+      console.log("🔍 [DEBUG] Server Response:", response);
 
-      console.log("🟢 Save Success Response:", response);
+      // 🚩 [SAFETY CHECK] ดัก Error 16 ชม. หรือ Error อื่นๆ ที่อาจซ่อนอยู่ใน Response 200
+      const serverDetails = response?.details || response?.data?.details || [];
+      const serverError = response?.error || response?.data?.error;
 
-      // ✅ SUCCESS CASE
+      if (serverError || (Array.isArray(serverDetails) && serverDetails.length > 0)) {
+        console.warn("🚫 [Validation Failed] Server returned error details. Stop saving.");
+        
+        // โยน Error เพื่อให้โดดไปทำงานที่ catch block ด้านล่าง
+        throw { 
+          code: serverError?.code || response?.code || 'VALIDATION_FAILED', 
+          message: serverError?.message || response?.message, 
+          details: serverDetails 
+        };
+      }
+
+      // ✅ [SUCCESS CASE] จะมาถึงตรงนี้ได้ ต้องไม่มี Error Details เท่านั้น
       setShowSuccessToast(true);
       
+      // หน่วงเวลาให้ Toast โชว์นิดนึงก่อนสั่ง onSuccess (ซึ่งมักจะไปปิด Modal หรือเปลี่ยนหน้า)
       setTimeout(() => {
-        onSuccess(); 
-      }, 500); // ดีเลย์ครึ่งวินาทีให้ UI นิ่งก่อน
+        onSuccess();
+        setShowSuccessToast(false);
+      }, 1000);
 
-      const postSaveMessages: string[] = [];
+      // จัดการ Warning หลังเซฟสำเร็จ
+      const finalWarnings: { msg: string; type: 'warning' }[] = [];
       const missingDays = getMissingEmergencyDays(scheduleRows, pendingAssignments, daysInMonth);
       if (missingDays.length > 0) {
-        postSaveMessages.push(`⚠️ วันที่ ${missingDays.join(', ')} ยังไม่มีเวร Emergency`);
+        finalWarnings.push({ msg: `วันที่ ${missingDays.join(', ')} ยังไม่มีเวร Emergency`, type: 'warning' });
       }
 
-      // ดึง Warning จาก Response 200
       if (response?.warning && Array.isArray(response.warning)) {
-        const serverWarnings = response.warning.map((msg: string) => formatWarning(msg));
-        postSaveMessages.push(...serverWarnings);
-      }else {
-        console.log("✅ No Server Warnings found in 200 OK"); // 🚩 เพิ่มเพื่อให้รู้ว่า "ไม่เจอ"
+        response.warning.forEach((msg: string) => {
+          if (msg.toUpperCase().includes('EMERGENCY')) return; 
+          const translatedMsg = formatWarning(msg);
+          if (translatedMsg) finalWarnings.push({ msg: translatedMsg, type: 'warning' });
+        });
       }
 
-      // สรุปการแสดงผล Sidebar
-      if (postSaveMessages.length > 0) {
-        setValidationErrors(postSaveMessages);
-        setIsSidebarOpen(true); 
-      } else {
-        setIsSidebarOpen(false); // ปิดเฉพาะกรณีไม่มี Warning เท่านั้น
-      }
-
-      setTimeout(() => setShowSuccessToast(false), 3000);
+      setValidationErrors(finalWarnings);
+      setIsSidebarOpen(finalWarnings.length > 0); 
 
     } catch (err: any) {
-      console.error("🔴 Save Failed (Error Details):", err);
+      console.error("🔴 [handleSave] Catch Block Triggered:", err);
+      let finalErrors: { msg: string; type: 'error' | 'warning' }[] = [];
       
-      let combinedErrors: string[] = [];
-      const serverData = err.data || {}; 
+      // พยายามดึง Details จากทุกจุดที่เป็นไปได้
+      const errorDetails = err.details || err.response?.data?.details || [];
+      
+      if (Array.isArray(errorDetails) && errorDetails.length > 0) {
+        const nurseMap = new Map();
+        if (scheduleRows) {
+          Object.entries(scheduleRows).forEach(([uid, data]: [string, any]) => {
+            nurseMap.set(String(uid).trim(), data.displayName || data.name || data.nurseName);
+          });
+        }
 
-      const mainMessage = err.message || "";
-      if (mainMessage.toLowerCase().includes("16 continuous working hours")) {
-        const translated = formatWarning(mainMessage).replace('⚠️', '❌');
-        combinedErrors.push(translated);
-      } else {
-        combinedErrors.push(translateError(err.code || '', mainMessage));
+        errorDetails.forEach((info: any) => {
+          // ดักเคส 16 ชม. (ต้องมี userId และ dates)
+          if (info.userId && info.dates) {
+            const targetId = String(info.userId).trim();
+            const displayName = nurseMap.get(targetId) || `พยาบาล (ID: ${targetId.substring(0, 5)})`;
+            const uniqueDays = Array.from(new Set<number>(info.dates.map((d: any) => new Date(d).getDate()))).sort((a, b) => a - b);
+            
+            finalErrors.push({ 
+              msg: `${displayName}: ขึ้นเวรเกิน 16 ชม. (วันที่ ${uniqueDays.join(', ')})`, 
+              type: 'error' 
+            });
+          }
+        });
       }
 
-      if (serverData.errors && Array.isArray(serverData.errors)) {
-        const extraErrors = serverData.errors.map((e: any) => translateError(e.code, e.message));
-        combinedErrors.push(...extraErrors);
+      // ถ้าไม่มี Error 16 ชม. ให้เช็ค Error ทั่วไปจาก Code/Message
+      if (finalErrors.length === 0) {
+        const errCode = err.code || err.response?.data?.code || '';
+        const errMsg = err.message || err.response?.data?.message || 'เกิดข้อผิดพลาดในการบันทึก';
+        const formatted = translateError(errCode, errMsg);
+        
+        const isWarning = formatted.includes('ไม่ครบ') || formatted.includes('ยังไม่มีการลงเวร');
+        finalErrors.push({ msg: formatted, type: isWarning ? 'warning' : 'error' });
       }
 
-      if (serverData.warning && Array.isArray(serverData.warning)) {
-        const warnings = serverData.warning.map((msg: string) => formatWarning(msg));
-        combinedErrors.push(...warnings);
-      }
-
-      setValidationErrors(Array.from(new Set(combinedErrors)).filter(Boolean));
-      setIsSidebarOpen(true); 
+      setValidationErrors(finalErrors);
+      setIsSidebarOpen(true);
+      setShowSuccessToast(false); // ป้องกัน Toast เขียวโผล่ตอนพัง
     } finally {
       setIsSaving(false);
     }

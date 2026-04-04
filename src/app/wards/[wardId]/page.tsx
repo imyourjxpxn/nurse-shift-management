@@ -65,7 +65,7 @@ export default function SchedulePage() {
     isFormValid: isValid, 
     validationMsg: messages,
     daysInMonth,
-    scheduleRows
+    scheduleRows: scheduleRows
   })
 
   // แสดง Loading ถ้ายังไม่มีข้อมูล

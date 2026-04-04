@@ -1,59 +1,31 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
 
-export async function apiFetch(
-  input: RequestInfo,
-  init?: RequestInit
-) {
+export async function apiFetch(input: RequestInfo, init?: RequestInit) {
   const isBrowser = typeof window !== "undefined"
-
-  // 🚩 1. ดึง Token และจัดการ "ล้าง" (คงเดิมตามอันเก่าที่คุณใช้)
   const rawToken = isBrowser ? localStorage.getItem("accessToken") : null
   const token = rawToken ? rawToken.replace(/"/g, "").trim() : null
 
   const headers = new Headers(init?.headers)
-
-  // 🚩 2. ใส่ Content-Type เฉพาะตอนมี body
   if (!headers.has("Content-Type") && init?.body) {
     headers.set("Content-Type", "application/json")
   }
-
-  // 🚩 3. ตรวจสอบ Token ก่อนส่ง (คงเดิมตามอันเก่า)
   if (token && token !== "undefined" && token !== "null") {
     headers.set("Authorization", `Bearer ${token}`)
   }
 
-  // 🚩 4. ตรวจสอบ Environment (คงเดิมตามอันเก่า - กันเหนียวเรื่อง Google Auth)
-  if (!API_BASE_URL && typeof input === "string" && !input.startsWith("http")) {
-    throw new Error("API_BASE_URL is not defined in environment variables")
-  }
+  const url = typeof input === "string" 
+    ? (input.startsWith("http") ? input : `${API_BASE_URL}${input}`) 
+    : input
 
-  const url =
-    typeof input === "string"
-      ? input.startsWith("http")
-        ? input
-        : `${API_BASE_URL}${input}`
-      : input
-
-  // 👇 DEBUG LOG (เก็บไว้ดูว่า Google Auth พ่นอะไรออกมา)
-  console.log("===== API DEBUG =====")
-  console.log("Final URL:", url)
-  console.log("Token Status:", token ? "Token Found & Cleaned" : "No Token")
-  
   try {
-    const res = await fetch(url, {
-      ...init,
-      headers,
-    })
+    const res = await fetch(url, { ...init, headers })
 
-    // 🚩 5. จัดการกรณี Unauthorized (401)
     if (res.status === 401) {
-      if (isBrowser) {
-        localStorage.removeItem("accessToken")
-      }
+      if (isBrowser) localStorage.removeItem("accessToken")
       throw new Error("Session หมดอายุ กรุณาเข้าสู่ระบบใหม่")
     }
 
-    // 🚩 6. จัดการ Error (400, 500) และดึงข้อมูล Warning/Error ก้อนใหญ่มาใช้
+    // 🚩 ส่วนที่แก้ไข: จัดการ Error 400/500 ให้รองรับ details
     if (!res.ok) {
       const errorText = await res.text()
       let errorData: any = {}
@@ -64,17 +36,36 @@ export async function apiFetch(
         errorData = { message: errorText }
       }
 
-      // 🚩 หัวใจสำคัญ: เก็บก้อน errorData ทั้งก้อนลงใน error object
-      const error: any = new Error(errorData.message || "เกิดข้อผิดพลาดในการเชื่อมต่อ")
+      console.log("🔍 [apiFetch] Error Data from Server:", errorData)
+
+      // สร้าง Error Object มาตรฐาน
+      const error: any = new Error(errorData.message || "เกิดข้อผิดพลาด")
       error.status = res.status
-      error.data = errorData // 👈 ห้ามลบบรรทัดนี้ เพราะเราต้องใช้ warning ในหน้าเซฟ
+      
+      /** * 🚩 จุดสำคัญ: 
+       * เก็บข้อมูลรายละเอียดความผิดพลาดไว้ใน .details 
+       * โดยพยายามดึงจาก errorData.details (ตาม Backend ของคุณ) 
+       * ถ้าไม่มีให้ลองหาจาก errorData.data หรือ errorData.errors
+       */
+      error.details = errorData.details || errorData.data || errorData.errors || [];
+      
+      // เก็บก้อนเต็มไว้ใน .data (เผื่อ Code ส่วนอื่นยังเรียกใช้ .data อยู่)
+      error.data = errorData; 
+      
+      // เก็บ Error Code (เช่น EXCEED_MAX_CONTINUOUS_WORK_HOUR)
+      error.code = errorData.code || (errorData.errors && errorData.errors[0]?.code);
       
       throw error
     }
 
-    return res // 200 OK
+    return res 
   } catch (error: any) {
-    console.error("Fetch Error:", error.message)
-    throw error
+    // 🚩 แก้ตรงนี้: เปลี่ยนจาก console.error เป็น console.warn
+    if (error.status) {
+      console.warn(`⚠️ [apiFetch] Server Error ${error.status}:`, error.message)
+    } else {
+      console.error("❌ [apiFetch] Network/Runtime Error:", error.message)
+    }
+    throw error // พ่นต่อเพื่อให้ useSaveConfig รับไปโชว์ใน Sidebar
   }
 }

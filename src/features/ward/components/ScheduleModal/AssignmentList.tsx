@@ -9,7 +9,6 @@ import { ShiftCellData } from '@/features/ward/types';
 
 interface Props {
   current: ShiftCellData[];
-  // pending: any[]; // 🚩 เอาออกตามบรีฟ (ไม่ต้องแสดง Tag กระพริบแล้ว)
   onDelete: (target: { id: string, name: string }) => void;
   getLabel: (type: string) => string;
 }

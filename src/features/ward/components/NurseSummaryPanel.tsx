@@ -47,7 +47,7 @@ export function NurseSummaryPanel({ scheduleRows }: Props) {
           })
         ) : (
           <div className="text-center py-10 text-gray-400 text-sm">
-            ไม่พบรายชื่อพยาบาลในระบบ
+            ไม่พบรายชื่อพยาบาลในวอร์ดนี้
           </div>
         )}
       </div>

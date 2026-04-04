@@ -8,15 +8,25 @@ interface Props {
   onCellClick?: (userId: string, day: number) => void
   daysInMonth: number;
   pendingAssignments?: any[]; 
-  isDisabled?: boolean; // 🚩 รับค่าเพื่อเช็คว่า Config ครบหรือยัง
+  isDisabled?: boolean; 
 }
+
+// 🚩 กำหนดลำดับการแสดงผลในช่องตาราง (ช > บ > ด > E > o > ล)
+const DISPLAY_ORDER: Record<string, number> = {
+  'ช': 1,
+  'บ': 2,
+  'ด': 3,
+  'E': 4,
+  'o': 5,
+  'ล': 6
+};
 
 export function ScheduleTable({ 
   scheduleRows, 
   onCellClick, 
   daysInMonth, 
   pendingAssignments = [],
-  isDisabled = false // Default เป็น false (ให้แก้ได้ถ้าไม่ได้ส่งค่ามา)
+  isDisabled = false 
 }: Props) {
   const days = Array.from({ length: daysInMonth }, (_, i) => i)
   
@@ -43,7 +53,6 @@ export function ScheduleTable({
       <table className={`w-full border-separate border-spacing-0 text-slate-900 transition-all duration-300
         ${isDisabled ? 'opacity-50 grayscale-[0.5] select-none pointer-events-none' : 'opacity-100'}`}>
         
-        {/* --- Header --- */}
         <thead className="sticky top-0 z-40">
           <tr className="bg-sky-100 text-sky-900">
             <th className="sticky left-0 z-50 bg-sky-100 border-b border-r border-sky-200 p-4 text-left min-w-[240px] font-bold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
@@ -57,7 +66,6 @@ export function ScheduleTable({
           </tr>
         </thead>
 
-        {/* --- Body --- */}
         <tbody className="bg-white">
           {sortedEntries.length > 0 ? (
             sortedEntries.map(([userId, row]) => {
@@ -73,7 +81,10 @@ export function ScheduleTable({
                   </td>
 
                   {days.map((day) => {
+                    // 1. ดึงข้อมูลเวรจาก Database (ที่มีอยู่แล้ว)
                     const dbShifts = (dailyShifts[day] || []).filter((s): s is ShiftCellData => s !== null);
+                    
+                    // 2. ดึงข้อมูลเวรที่รอการบันทึก (Pending)
                     const pShifts = pendingAssignments
                       .filter(p => p.userId === userId && p.day === (day + 1))
                       .map(p => ({
@@ -81,12 +92,16 @@ export function ScheduleTable({
                         isPending: true 
                       }));
 
-                    const combinedShifts = [...dbShifts, ...pShifts];
+                    // 🚩 3. รวมร่างและทำการ SORT ตามลำดับที่กำหนดไว้ (ช > บ > ด ...)
+                    const combinedShifts = [...dbShifts, ...pShifts].sort((a, b) => {
+                      const orderA = DISPLAY_ORDER[a.code] || 99;
+                      const orderB = DISPLAY_ORDER[b.code] || 99;
+                      return orderA - orderB;
+                    });
 
                     return (
                       <td 
                         key={day} 
-                        // แม้ pointer-events-none จะดักไว้แล้ว แต่ใส่เช็คกันเหนื่อยที่ onClick ด้วยครับ
                         onClick={() => !isDisabled && onCellClick?.(userId, day)} 
                         className={`border-b border-r border-sky-50 p-2 transition-all 
                           ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-sky-50/50'}`}
@@ -115,8 +130,8 @@ export function ScheduleTable({
             })
           ) : (
             <tr>
-              <td colSpan={daysInMonth + 1} className="p-20 text-center text-slate-400 font-bold text-xl">
-                ไม่พบข้อมูลพยาบาล
+              <td colSpan={daysInMonth + 1} className="text-center py-10 text-gray-400 text-sm">
+                ไม่พบรายชื่อพยาบาลในวอร์ดนี้
               </td>
             </tr>
           )}
