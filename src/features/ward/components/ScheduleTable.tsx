@@ -5,21 +5,16 @@ import { NurseScheduleRow, AssignmentType, ShiftCellData } from "../types"
 
 interface Props {
   scheduleRows: Record<string, NurseScheduleRow>
-  onCellClick?: (userId: string, day: number) => void
+  onCellClick?: (userId: string, day: number, cellData?: ShiftCellData) => void
   daysInMonth: number;
   pendingAssignments?: any[]; 
   isDisabled?: boolean; 
   userRole?: string;
+  currentUserId: string;
 }
 
-// 🚩 กำหนดลำดับการแสดงผลในช่องตาราง (ช > บ > ด > E > o > ล)
 const DISPLAY_ORDER: Record<string, number> = {
-  'ช': 1,
-  'บ': 2,
-  'ด': 3,
-  'E': 4,
-  'o': 5,
-  'ล': 6
+  'ช': 1, 'บ': 2, 'ด': 3, 'E': 4, 'o': 5, 'ล': 6
 };
 
 export function ScheduleTable({ 
@@ -27,7 +22,9 @@ export function ScheduleTable({
   onCellClick, 
   daysInMonth, 
   pendingAssignments = [],
-  isDisabled = false 
+  isDisabled = false,
+  userRole = 'nurse',
+  currentUserId
 }: Props) {
   const days = Array.from({ length: daysInMonth }, (_, i) => i)
   
@@ -60,7 +57,7 @@ export function ScheduleTable({
               รายชื่อพยาบาล
             </th>
             {days.map((d) => (
-              <th key={d} className="border-b border-r border-sky-200 p-2 text-center min-w-[130px] font-bold text-sm">
+              <th key={d} className="border-b border-r border-sky-00 p-2 text-center min-w-[130px] font-bold text-sm">
                 {d + 1}
               </th>
             ))}
@@ -72,20 +69,20 @@ export function ScheduleTable({
             sortedEntries.map(([userId, row]) => {
               const { displayName, dailyShifts } = row;
               const isHead = displayName.includes("(Head)");
+              const isMyRow = userId === currentUserId;
 
               return (
-                <tr key={userId} className={`group ${isHead ? 'bg-amber-50/30' : 'hover:bg-blue-50/20'}`}>
-                  <td className={`sticky left-0 z-30 border-b border-r border-sky-100 p-4 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${isHead ? 'bg-amber-50' : 'bg-white group-hover:bg-blue-50'}`}>
-                    <div className={`truncate font-bold ${isHead ? 'text-amber-700' : 'text-slate-700'}`}>
-                      {displayName}
+                <tr key={userId} className={`group ${isMyRow ? 'bg-blue-50/20' : isHead ? 'bg-amber-50/30' : 'hover:bg-blue-50/10'}`}>
+                  <td className={`sticky left-0 z-30 border-b border-r border-sky-100 p-4 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] 
+                    ${isMyRow ? 'bg-blue-50 font-black' : isHead ? 'bg-amber-50' : 'bg-white group-hover:bg-slate-50'}`}>
+                    <div className={`truncate font-bold ${isMyRow ? 'text-blue-700' : isHead ? 'text-amber-700' : 'text-slate-700'}`}>
+                      {displayName} {isMyRow && <span>(ฉัน)</span>}
                     </div>
                   </td>
 
                   {days.map((day) => {
-                    // 1. ดึงข้อมูลเวรจาก Database (ที่มีอยู่แล้ว)
                     const dbShifts = (dailyShifts[day] || []).filter((s): s is ShiftCellData => s !== null);
                     
-                    // 2. ดึงข้อมูลเวรที่รอการบันทึก (Pending)
                     const pShifts = pendingAssignments
                       .filter(p => p.userId === userId && p.day === (day + 1))
                       .map(p => ({
@@ -93,19 +90,25 @@ export function ScheduleTable({
                         isPending: true 
                       }));
 
-                    // 🚩 3. รวมร่างและทำการ SORT ตามลำดับที่กำหนดไว้ (ช > บ > ด ...)
                     const combinedShifts = [...dbShifts, ...pShifts].sort((a, b) => {
                       const orderA = DISPLAY_ORDER[a.code] || 99;
                       const orderB = DISPLAY_ORDER[b.code] || 99;
                       return orderA - orderB;
                     });
 
+                    const canClick = userRole === 'head_nurse' || (isMyRow && dbShifts.length > 0);
+
                     return (
                       <td 
                         key={day} 
-                        onClick={() => !isDisabled && onCellClick?.(userId, day)} 
-                        className={`border-b border-r border-sky-50 p-2 transition-all 
-                          ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-sky-50/50'}`}
+                        onClick={() => {
+                          if (!isDisabled && canClick) {
+                            onCellClick?.(userId, day, dbShifts[0]);
+                          }
+                        }} 
+                        className={`border-b border-r border-sky-50 p-2 transition-all text-center
+                          ${isDisabled ? 'cursor-not-allowed' : 
+                            canClick ? 'cursor-pointer hover:bg-white hover:shadow-inner' : 'cursor-default'}`}
                       >
                         <div className="flex justify-center items-center min-h-[48px] gap-1.5">
                           {combinedShifts.map((s, idx) => (
@@ -147,7 +150,7 @@ function getShiftStyles(s: string) {
     'ช': "bg-sky-100 text-sky-700 border-sky-200",
     'บ': "bg-orange-100 text-orange-700 border-orange-200",
     'ด': "bg-violet-100 text-violet-700 border-violet-200",
-    'E': "bg-rose-50 text-rose-600 border-rose-300 ring-1 ring-rose-100",
+    'E': "bg-rose-50 text-rose-600 border-rose-300",
     'o': "bg-green-100 text-green-700 border-green-200",
     'ล': "bg-slate-100 text-slate-700 border-slate-200"
   };

@@ -24,14 +24,14 @@ export const ShiftOption = ({
     type="button"
     disabled={isBlocked}
     onClick={onClick}
-    className={`flex items-center justify-between px-5 py-4 rounded-2xl border-2 transition-all w-full
+    className={`flex items-center justify-between px-4 py-3 rounded-xl border text-sm transition-all w-full
       ${isSelected 
-        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-100' 
-        : 'border-slate-50 bg-slate-50'
+        ? 'border-sky-500 bg-sky-50' 
+        : 'border-slate-200 bg-slate-50'
       }
       ${isBlocked 
-        ? 'opacity-40 grayscale cursor-not-allowed bg-slate-100 border-slate-200' 
-        : 'hover:border-slate-200 active:scale-[0.98]'
+        ? 'opacity-40 cursor-not-allowed bg-slate-100' 
+        : 'hover:bg-slate-100'
       }`}
   >
     <div className="flex flex-col items-start text-left">

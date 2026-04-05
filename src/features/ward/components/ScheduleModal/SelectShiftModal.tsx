@@ -66,106 +66,140 @@ export function SelectShiftModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-[2.5rem] w-full max-w-[440px] shadow-2xl relative overflow-hidden flex flex-col">
-        
-        {/* Header (เหมือนเดิม) */}
-        <div className="p-8 pb-4 flex justify-between items-start border-b border-slate-50">
-          <div className="text-left">
-            <h2 className="text-2xl font-black text-slate-800">จัดการเวร</h2>
-            <div className="flex items-center gap-3 mt-2">
-              <span className="text-blue-600 font-extrabold text-xl">{nurseName}</span>
-              <span className="text-slate-300">|</span>
-              <span className="text-slate-500 font-bold text-base">{dateLabel}</span>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400">
-            <X size={24} />
-          </button>
-        </div>
+              <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden flex flex-col">
 
-        {/* Content Area (ใส่ blur เมื่อจะลบ) */}
-        <div className={`px-8 py-6 flex-1 overflow-y-auto max-h-[60vh] transition-all duration-300 ${deleteTarget ? 'blur-md pointer-events-none' : ''}`}>
-          <AssignmentList 
-            current={currentAssignments} 
-            onDelete={setDeleteTarget} 
-            getLabel={getLabel} 
-          />
+              {/* Header */}
+              <div className="px-6 py-4 flex justify-between items-center border-b">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-800">จัดการเวร</h2>
+                  <p className="text-sm text-slate-500">
+                    {nurseName} • {dateLabel}
+                  </p>
+                </div>
 
-          {/* ปุ่มเลือกเวรปกติ (ช บ ด) */}
-          <div className="mb-8 mt-4 text-left">
-            <p className="text-[11px] font-black text-slate-400 uppercase mb-3 px-1">เพิ่มเวรทำงาน</p>
-            <div className="grid gap-2">
-              {['morning', 'afternoon', 'night'].map((type) => {
-                const template = shiftTemplates.find(t => t.type === type);
-                return (
-                  <ShiftOption 
-                    key={type}
-                    type={type}
-                    label={getLabel(type)} 
-                    timeRange={`${template?.startTime || '--:--'} - ${template?.endTime || '--:--'}`}
-                    isSelected={selectedTypes.includes(type)}
-                    isBlocked={getBlockStatus(type)}
-                    onClick={() => onSelectType(type)}
-                  />
-                );
-              })}
-            </div>
-          </div>
-
-          {/* ปุ่มเลือกกรณีพิเศษ (E ลา OFF) */}
-          <div className="text-left">
-            <p className="text-[11px] font-black text-slate-400 uppercase mb-3 px-1">กรณีพิเศษ</p>
-            <div className="grid grid-cols-3 gap-2">
-              {['emergency', 'leave', 'off'].map((type) => (
-                <SpecialOption 
-                  key={type} 
-                  label={getLabel(type)}
-                  isSelected={selectedTypes.includes(type)}
-                  isBlocked={getBlockStatus(type)}
-                  onClick={() => onSelectType(type)}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Footer Buttons */}
-        <div className={`p-8 bg-white flex gap-3 border-t border-slate-50 transition-opacity ${deleteTarget ? 'opacity-0' : 'opacity-100'}`}>
-          <button onClick={onClose} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-3xl font-bold hover:bg-slate-200">
-            ยกเลิก
-          </button>
-          <button onClick={() => onConfirm(selectedTypes)} className="flex-1 py-4 bg-blue-600 text-white rounded-3xl font-black shadow-xl shadow-blue-100 active:scale-95 transition-all">
-            ยืนยัน
-          </button>
-        </div>
-
-        {/* Delete Confirmation Overlay (ตัวทับเพื่อยืนยันลบ) */}
-        {deleteTarget && (
-          <div className="absolute inset-0 z-50 bg-white/90 backdrop-blur-sm flex items-center justify-center p-8 animate-in fade-in zoom-in duration-200">
-            <div className="text-center w-full max-w-[320px]">
-              <div className="w-20 h-20 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertCircle size={40} />
+                <button
+                  onClick={onClose}
+                  className="p-2 rounded-md hover:bg-slate-100 text-slate-400"
+                >
+                  <X size={20} />
+                </button>
               </div>
-              <h3 className="text-2xl font-black text-slate-800">ยืนยันการลบ?</h3>
-              <p className="text-slate-500 text-sm mt-2">"{deleteTarget.name}" จะถูกลบถาวร</p>
-              
-              <div className="flex gap-3 mt-8">
-                <button onClick={() => setDeleteTarget(null)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-bold">
+
+              {/* Content */}
+              <div className={`px-6 py-4 flex-1 overflow-y-auto max-h-[50vh] 
+                ${deleteTarget ? 'blur-sm pointer-events-none' : ''}`}>
+
+                <AssignmentList 
+                  current={currentAssignments} 
+                  onDelete={setDeleteTarget} 
+                  getLabel={getLabel} 
+                />
+
+                {/* Normal Shift */}
+                <div className="mb-5">
+                  <p className="text-xs font-semibold text-slate-400 mb-2">
+                    เพิ่มเวรทำงาน
+                  </p>
+
+                  <div className="space-y-2">
+                    {['morning', 'afternoon', 'night'].map((type) => {
+                      const template = shiftTemplates.find(t => t.type === type)
+
+                      return (
+                        <ShiftOption 
+                          key={type}
+                          type={type}
+                          label={getLabel(type)} 
+                          timeRange={`${template?.startTime || '--:--'} - ${template?.endTime || '--:--'}`}
+                          isSelected={selectedTypes.includes(type)}
+                          isBlocked={getBlockStatus(type)}
+                          onClick={() => onSelectType(type)}
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Special */}
+                <div className="mt-6">
+                  <p className="text-xs font-semibold text-slate-400 mb-2">
+                    กรณีพิเศษ
+                  </p>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    {['emergency', 'leave', 'off'].map((type) => (
+                      <SpecialOption 
+                        key={type}
+                        label={getLabel(type)}
+                        isSelected={selectedTypes.includes(type)}
+                        isBlocked={getBlockStatus(type)}
+                        onClick={() => onSelectType(type)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className={`px-6 py-4 border-t flex gap-3 
+                ${deleteTarget ? 'opacity-0' : ''}`}>
+
+                <button
+                  onClick={onClose}
+                  className="flex-1 py-2.5 rounded-lg border text-slate-600 hover:bg-slate-100"
+                >
                   ยกเลิก
                 </button>
-                <button 
-                  disabled={isDeleting} 
-                  onClick={onExecuteDelete} 
-                  className="flex-1 py-4 bg-rose-500 text-white rounded-2xl font-black shadow-lg shadow-rose-100 disabled:opacity-50"
+
+                <button
+                  onClick={() => onConfirm(selectedTypes)}
+                  className="flex-1 py-2.5 rounded-lg bg-sky-500 text-white hover:bg-sky-600"
                 >
-                  {isDeleting ? 'กำลังลบ...' : 'ยืนยันลบ'}
+                  ยืนยัน
                 </button>
               </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div> 
+
+                        {deleteTarget && (
+              <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+                
+                <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6">
+                  
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <AlertCircle size={28} />
+                    </div>
+
+                    <h3 className="text-lg font-bold text-slate-800">
+                      ยืนยันการลบ
+                    </h3>
+
+                    <p className="text-sm text-slate-500 mt-1">
+                      "{deleteTarget.name}" จะถูกลบ
+                    </p>
+
+                    <div className="flex gap-2 mt-6">
+                      <button
+                        onClick={() => setDeleteTarget(null)}
+                        className="flex-1 py-2.5 rounded-lg border text-slate-600 hover:bg-slate-100"
+                      >
+                        ยกเลิก
+                      </button>
+
+                      <button
+                        disabled={isDeleting}
+                        onClick={onExecuteDelete}
+                        className="flex-1 py-2.5 rounded-lg bg-red-500 text-white hover:bg-red-600"
+                      >
+                        {isDeleting ? 'กำลังลบ...' : 'ลบ'}
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            )}
+       </div>
+</div>
   );
 }

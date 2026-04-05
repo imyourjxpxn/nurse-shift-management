@@ -30,7 +30,7 @@ export const AssignmentList = ({ current, onDelete, getLabel }: Props) => {
             return (
               <div 
                 key={a.shiftAssignmentId} 
-                className="flex items-center px-3 py-1.5 rounded-xl border border-sky-100 bg-sky-50 text-sky-700 font-bold text-xs shadow-sm group"
+                className="flex items-center px-4 py-1.5 min-w-[100px] justify-between rounded-full border bg-sky-50 text-sky-600 text-xs"
               >
                 {label}
                 <button 

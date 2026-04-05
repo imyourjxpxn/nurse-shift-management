@@ -82,6 +82,7 @@ export interface NurseSummary {
 
 // UI Model สำหรับใช้ใน State ของหน้าตารางเวร
 export interface NurseScheduleRow {
+  userId: string;
   displayName: string;
   dailyShifts: (ShiftCellData | null)[][]; // [dayIndex][shiftIndex] -> [ShiftCellData]
   summary: NurseSummary;
@@ -94,4 +95,12 @@ export interface ShiftSyncData {
   requiredPeople: number;
   originalRequiredPeople?: number;
   hasError: boolean;
+}
+
+
+interface SwapPayload {
+  requester_assignment_id: string;
+  approver_user_id: string;
+  approver_assignment_id: string;
+  note: string;
 }

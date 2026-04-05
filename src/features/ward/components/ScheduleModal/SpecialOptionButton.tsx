@@ -21,13 +21,13 @@ export const SpecialOption = ({
     type="button"
     disabled={isBlocked}
     onClick={onClick}
-    className={`py-3.5 rounded-xl border-2 transition-all font-black text-xs w-full
-      ${isBlocked 
-        ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed opacity-50' 
-        : isSelected 
-          ? 'border-blue-600 bg-blue-600 text-white shadow-lg shadow-blue-100' 
-          : 'border-slate-50 bg-slate-50 text-slate-500 hover:border-slate-200 active:scale-95'
-      }`}
+    className={`py-2 rounded-lg border text-xs font-semibold transition-all
+    ${isBlocked 
+      ? 'bg-slate-100 text-slate-300' 
+      : isSelected 
+        ? 'bg-sky-500 text-white border-sky-400' 
+        : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+    }`}
   >
     {label}
   </button>
