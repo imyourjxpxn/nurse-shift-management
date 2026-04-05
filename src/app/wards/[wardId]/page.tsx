@@ -27,7 +27,8 @@ import { useShiftValidation } from '@/features/ward/utils/useShiftTempValidation
 import { useScheduleData } from '@/features/ward/hooks/useScheduleData'
 import { useSaveConfig } from '@/features/ward/hooks/useSaveConfig'
 import { useScheduleModal } from '@/features/ward/hooks/useScheduleModal'
-// 🚩 นำเข้า Modal สลับเวร
+
+// 🚩 Modal สลับเวร (ตัวที่เราเพิ่งทำกัน)
 import ShiftSwapModal from '@/features/ward/components/ShiftSwapModal'
 
 export default function SchedulePage() {
@@ -43,8 +44,7 @@ export default function SchedulePage() {
 
   // 🚩 State สำหรับระบบแลกเวร (Nurse Only)
   const [swapData, setSwapData] = useState<any>(null)
-  const [availablePeers, setAvailablePeers] = useState<any[]>([])
-  const [isLoadingPeers, setIsSearchingPeers] = useState(false)
+  const [showSwapSuccess, setShowSwapSuccess] = useState(false) // สำหรับแจ้งเตือนเมื่อแลกสำเร็จ
 
   const modal = useScheduleModal(scheduleRows, refresh, pendingAssignments)
   const { isValid, messages } = useShiftValidation(configData)
@@ -56,32 +56,6 @@ export default function SchedulePage() {
     daysInMonth, scheduleRows: scheduleRows, shiftTemplates: shiftTemplates
   })
 
-  // 🚩 ฟังก์ชันค้นหาเพื่อนพยาบาลเพื่อแลกเวร
-  const handleSearchPeers = async (date: string) => {
-    setIsSearchingPeers(true)
-    try {
-      const targetDay = new Date(date).getDate()
-      const peers = Object.values(scheduleRows)
-        .filter(row => row.userId !== currentUserId)
-        .map(row => {
-          const shift = row.dailyShifts[targetDay - 1]?.[0]
-          if (!shift) return null
-          return {
-            userId: row.userId,
-            name: row.displayName,
-            assignmentId: shift.shiftAssignmentId,
-            shiftName: shift.code,
-            startTime: '-', 
-            endTime: '-'
-          }
-        })
-        .filter(p => p !== null)
-      setAvailablePeers(peers)
-    } finally {
-      setIsSearchingPeers(false)
-    }
-  }
-
   if (loadingData && Object.keys(scheduleRows).length === 0) return <LoadingSpinner />
 
   const isHeadNurse = wardData?.userRole === 'head_nurse'
@@ -90,8 +64,12 @@ export default function SchedulePage() {
     <div className="p-6 space-y-6 bg-slate-50 min-h-screen relative overflow-x-hidden text-slate-900 font-sans">
       <BackButton />
       
+      {/* --- Toast Notifications --- */}
       {isSaving && <ToastSaving />}
       {showSuccessToast && <ToastSuccess />}
+      
+      {/* 🚩 แสดง Toast สีเขียวเมื่อพยาบาลส่งคำขอแลกเวรสำเร็จ */}
+      {showSwapSuccess && <ToastSuccess />}
 
       <ValidationErrorSidebar 
         isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} errors={validationErrors} 
@@ -125,7 +103,7 @@ export default function SchedulePage() {
               <LegendItem color="bg-violet-100" label="เวรดึก : ด" />
               <LegendItem color="bg-rose-100" label="Emergency : E" />
               <LegendItem color="bg-green-100" label="off : o" />
-               <LegendItem color="bg-slate-100" label="ลา : ล" />
+              <LegendItem color="bg-slate-100" label="ลา : ล" />
             </div>
           </div>
 
@@ -138,14 +116,18 @@ export default function SchedulePage() {
             currentUserId={currentUserId}
             onCellClick={(nurseId, day, cellData) => {
               if (isHeadNurse) {
+                // ถ้าเป็น Head Nurse ให้เปิด Modal แก้ไขตารางปกติ
                 modal.open(nurseId, day)
               } else if (nurseId === currentUserId && cellData?.shiftAssignmentId) {
-                setSwapData({
-                  assignmentId: cellData.shiftAssignmentId,
-                  shiftName: cellData.code,
-                  date: new Date(year, month, day + 1).toISOString(),
-                  dateLabel: `วันที่ ${day + 1} ${monthName}`
-                })
+                // 🚩 เปลี่ยนจาก cellData.type เป็น templateType หรือ assignmentType
+                  setSwapData({
+                    assignmentId: cellData.shiftAssignmentId,
+                    shiftName: cellData.code,
+                    // ใช้ templateType (เช้า/บ่าย/ดึก) หรือถ้าไม่มีให้ใช้ assignmentType (shift/off/leave)
+                    type: cellData.templateType || cellData.assignmentType, 
+                    date: new Date(year, month, day + 1).toISOString(),
+                    dateLabel: `วันที่ ${day + 1} ${monthName}`
+                  })
               }
             }}
           />
@@ -154,7 +136,7 @@ export default function SchedulePage() {
 
       <NurseSummaryPanel scheduleRows={scheduleRows} />
 
-      {/* --- Modal เลือกเวร (Head Nurse) --- */}
+      {/* --- Modal เลือกเวร (สำหรับ Head Nurse เท่านั้น) --- */}
       <SelectShiftModal
         isOpen={modal.isOpen} onClose={modal.close}
         nurseName={modal.nurseName} dateLabel={`วันที่ ${modal.day + 1} ${monthName}`}
@@ -181,7 +163,7 @@ export default function SchedulePage() {
         }}
       />
 
-      {/* 🚩 Modal แลกเวร (Nurse) */}
+      {/* 🚩 Modal แลกเวร (สำหรับ Nurse - เรียกใช้ไฟล์เดียวจบ) */}
       {swapData && (
         <ShiftSwapModal 
           isOpen={!!swapData}
@@ -190,10 +172,12 @@ export default function SchedulePage() {
           requesterShift={swapData}
           currentYear={year}
           currentMonth={month + 1} 
-          onConfirm={async (payload) => {
-            console.log("Confirmed Swap Request:", payload);
-            setSwapData(null);
-            refresh(); 
+          onConfirm={() => {
+            // เมื่อส่งคำขอสำเร็จ:
+            setShowSwapSuccess(true); // 1. โชว์ Toast
+            setTimeout(() => setShowSwapSuccess(false), 3000); // 2. ปิด Toast หลัง 3 วิ
+            setSwapData(null); // 3. ปิด Modal
+            refresh(); // 4. อัปเดตข้อมูลตารางใหม่
           }}
         />
       )}
