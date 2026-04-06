@@ -13,6 +13,7 @@ import {
   ChevronDown 
 } from 'lucide-react'
 import { WardDetail as WardDetailType } from '@/features/ward/types'
+import { handleExport } from '../api/handleExport'
 
 interface Props {
   ward: WardDetailType;
@@ -151,7 +152,10 @@ export function WardDetail({
             </>
           )}
 
-          <button className="flex items-center gap-2 px-5 py-3 bg-[#10b981] text-white rounded-2xl text-sm font-semibold hover:bg-green-600 transition shadow-sm active:scale-95">
+          <button 
+            onClick={() => handleExport(ward.wardId, currentYear, currentMonthIdx)}
+            className="flex items-center gap-2 px-5 py-3 bg-[#10b981] text-white rounded-2xl text-sm font-semibold hover:bg-green-600 transition shadow-sm active:scale-95"
+          >
             <Download size={18} />
             Export
           </button>
