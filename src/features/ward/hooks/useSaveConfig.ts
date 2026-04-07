@@ -35,6 +35,7 @@ export function useSaveConfig({
       'EXCEED_MAX_CONTINUOUS_WORK_HOUR': 'พบพยาบาลทำงานติดต่อกันเกิน 16 ชั่วโมง',
       'SHIFT_TEMPLATE_LIMIT_EXCEEDED': 'จำนวนประเภทเวรในวอร์ดนี้เต็มแล้ว (สูงสุด 3)',
       'SHIFT_TEMPLATE_TIME_OVERLAP': 'เวลาของเวรใหม่ทับซ้อนกับเวรที่มีอยู่เดิม',
+      'EMERGENCY_REQUIRED_PER_DAY' : 'วันที่มีการจัดเวรให้สมาชิกทุกคนแล้วต้องมีเวร Emergency อย่างน้อย 1 คน'
     };
     return messages[code] || rawMessage || 'เกิดข้อผิดพลาดในการบันทึก';
   };
