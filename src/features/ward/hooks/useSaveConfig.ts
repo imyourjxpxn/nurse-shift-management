@@ -128,6 +128,10 @@ export function useSaveConfig({
       const serverDetails = response?.details || response?.data?.details || [];
       const serverError = response?.error || response?.data?.error;
 
+      const myServerCode = response?.code || response?.data?.code;
+
+      const myServerDetails = response?.details || response?.data?.details || [];
+
       if (serverError || (Array.isArray(serverDetails) && serverError?.code !== 'EMERGENCY_SHIFT_MISSING' && serverDetails.length > 0)) {
         throw { 
           code: serverError?.code || response?.code || 'VALIDATION_FAILED', 
@@ -135,6 +139,23 @@ export function useSaveConfig({
           details: serverDetails 
         };
       }
+
+      console.log(myServerDetails)
+
+      if (
+        myServerCode &&
+        myServerCode !== 'EMERGENCY_SHIFT_MISSING' &&
+        Array.isArray(myServerDetails) &&
+        myServerDetails.length > 0
+      ) {
+        throw {
+          code: myServerCode,
+          details: myServerDetails,
+          message: response?.message || response?.data?.message
+        };
+      }
+
+      
 
       // SUCCESS CASE
       setShowSuccessToast(true);
@@ -166,6 +187,13 @@ export function useSaveConfig({
       const errorDetails = err.details || err.response?.data?.details || [];
       
       if (Array.isArray(errorDetails) && errorDetails.length > 0) {
+        // ✅ CASE: Emergency missing per day
+        if (err.code === 'EMERGENCY_REQUIRED_PER_DAY') {
+          finalErrors.push({
+            msg: `วันที่ ${errorDetails.join(', ')} ต้องมีเวร Emergency อย่างน้อย 1 คน`,
+            type: 'error'
+          });
+        }
         const nurseMap = new Map();
         if (scheduleRows) {
           Object.entries(scheduleRows).forEach(([uid, data]: [string, any]) => {
